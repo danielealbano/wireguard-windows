@@ -295,3 +295,42 @@ func TestHasWebSocketPeers(t *testing.T) {
 		})
 	}
 }
+
+func TestFromWgQuick_WebSocketURLPassword_NotInErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+	}{
+		{name: "userinfo", endpoint: "wss://user:S3cretPw@vpn.example.com:443/ws"},
+		{name: "userinfo and query without path", endpoint: "wss://user:S3cretPw@vpn.example.com:443?x=1"},
+		{name: "userinfo and missing port", endpoint: "wss://user:S3cretPw@vpn.example.com/ws"},
+		{name: "userinfo and unparsable URL", endpoint: "wss://user:S3cretPw@vpn example.com:443/%zz"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := FromWgQuick(wsTestConfig("Endpoint = "+tc.endpoint+"\nWSMode = websocket\n"), "ws")
+			if err == nil {
+				t.Fatal("FromWgQuick accepted the URL")
+			}
+			if strings.Contains(err.Error(), "S3cretPw") {
+				t.Fatalf("error leaks the URL password: %v", err)
+			}
+		})
+	}
+}
+
+func TestRedactWSURL(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{in: "wss://user:pw@host:443/p?q#f", want: "wss://xxxxx@host:443/p?q#f"},
+		{in: "ws://host:80/a@b", want: "ws://host:80/a@b"},
+		{in: "ws://host:80", want: "ws://host:80"},
+		{in: "not a url", want: "not a url"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			equal(t, tc.want, redactWSURL(tc.in))
+		})
+	}
+}
