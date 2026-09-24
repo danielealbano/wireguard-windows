@@ -127,8 +127,8 @@ func (config *Config) WSTLSStoredFileNames() []string {
 
 // CollectWSTLSFiles reads every TLS file the config refers to with read, stores the
 // contents in WSTLSFiles under a stored file name and rewrites each reference to that
-// name. It returns the references that were not already stored file names, mapped to
-// the name they were stored under, so that the copy can be disclosed to the user.
+// name. It returns every reference mapped to the name it was stored under, so that the
+// caller can disclose the copies to the user.
 func (config *Config) CollectWSTLSFiles(read func(ref string) ([]byte, error)) (map[string]string, error) {
 	files := make(map[string][]byte)
 	taken := make(map[string]bool)
@@ -141,15 +141,15 @@ func (config *Config) CollectWSTLSFiles(read func(ref string) ([]byte, error)) (
 			taken[strings.ToLower(*ref)] = true
 		}
 	}
-	copied := make(map[string]string)
+	stored := make(map[string]string)
 	for _, ref := range refs {
 		name, ok := names[*ref]
 		if !ok {
 			name = uniqueWSTLSFileName(sanitizeWSTLSFileName(filepath.Base(*ref)), taken)
 			names[*ref] = name
 			taken[strings.ToLower(name)] = true
-			copied[*ref] = name
 		}
+		stored[*ref] = name
 		if _, ok := files[name]; !ok {
 			data, err := read(*ref)
 			if err != nil {
@@ -166,7 +166,7 @@ func (config *Config) CollectWSTLSFiles(read func(ref string) ([]byte, error)) (
 		return nil, &ParseError{l18n.Sprintf("Too many TLS files"), fmt.Sprint(len(files))}
 	}
 	config.WSTLSFiles = files
-	return copied, nil
+	return stored, nil
 }
 
 // ValidateWSTLSFiles checks that WSTLSFiles holds exactly the stored TLS files the

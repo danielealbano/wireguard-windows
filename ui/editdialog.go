@@ -341,10 +341,16 @@ func (dlg *EditDialog) onSaveButtonClicked() {
 		return
 	}
 
-	copied, err := cfg.CollectWSTLSFiles(conf.WSTLSFileReader(dlg.config.WSTLSFiles, ""))
+	stored, err := cfg.CollectWSTLSFiles(conf.WSTLSFileReader(dlg.config.WSTLSFiles, ""))
 	if err != nil {
 		showErrorCustom(dlg, l18n.Sprintf("Unable to create new configuration"), err.Error())
 		return
+	}
+	copied := make(map[string]string, len(stored))
+	for ref, name := range stored {
+		if _, alreadyStored := dlg.config.WSTLSFiles[ref]; !alreadyStored {
+			copied[ref] = name
+		}
 	}
 	if len(copied) > 0 {
 		walk.MsgBox(dlg, l18n.Sprintf("TLS files copied"), wsTLSCopiedMessage(copied), walk.MsgBoxIconInformation)

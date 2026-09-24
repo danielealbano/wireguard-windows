@@ -382,7 +382,7 @@ func (tp *TunnelsPage) importFiles(paths []string) {
 				lastErr = err
 				continue
 			}
-			copied, err := config.CollectWSTLSFiles(unparsedConfig.ReadWSTLSFile)
+			stored, err := config.CollectWSTLSFiles(unparsedConfig.ReadWSTLSFile)
 			if err != nil {
 				lastErr = err
 				continue
@@ -392,7 +392,7 @@ func (tp *TunnelsPage) importFiles(paths []string) {
 				lastErr = err
 				continue
 			}
-			for ref, name := range copied {
+			for ref, name := range stored {
 				copiedWSTLSFiles = append(copiedWSTLSFiles, l18n.Sprintf("%s: %s → %s", unparsedConfig.Name, ref, name))
 			}
 			existingLowerTunnels[strings.ToLower(unparsedConfig.Name)] = true

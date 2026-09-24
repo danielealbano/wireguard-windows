@@ -111,7 +111,7 @@ func TestCollectWSTLSFiles_CopiesAndRewrites(t *testing.T) {
 		"kept.key":        []byte("key"),
 	}
 	reads := 0
-	copied, err := c.CollectWSTLSFiles(func(ref string) ([]byte, error) {
+	stored, err := c.CollectWSTLSFiles(func(ref string) ([]byte, error) {
 		reads++
 		data, ok := contents[ref]
 		if !ok {
@@ -128,7 +128,7 @@ func TestCollectWSTLSFiles_CopiesAndRewrites(t *testing.T) {
 	equal(t, "kept.key", c.Peers[0].WSTLSKey)
 	equal(t, "ca-2.pem", c.Peers[1].WSTLSCA)
 	equal(t, "client.pem", c.Peers[1].WSTLSCert)
-	equal(t, map[string]string{`C:\a\ca.pem`: "ca.pem", `C:\b\ca.pem`: "ca-2.pem", `C:\a\client.pem`: "client.pem"}, copied)
+	equal(t, map[string]string{`C:\a\ca.pem`: "ca.pem", `C:\b\ca.pem`: "ca-2.pem", `C:\a\client.pem`: "client.pem", "kept.key": "kept.key"}, stored)
 	equal(t, map[string][]byte{"ca.pem": []byte("ca-a"), "ca-2.pem": []byte("ca-b"), "client.pem": []byte("client"), "kept.key": []byte("key")}, c.WSTLSFiles)
 	if err := c.ValidateWSTLSFiles(); err != nil {
 		t.Fatalf("ValidateWSTLSFiles after collecting: %v", err)
@@ -137,13 +137,13 @@ func TestCollectWSTLSFiles_CopiesAndRewrites(t *testing.T) {
 
 func TestCollectWSTLSFiles_StoredNameKeepsItsName(t *testing.T) {
 	c := wsTLSTestConfig(t, "WSTLSCA = ca.pem\nWSTLSCert = C:\\x\\ca.pem\n")
-	copied, err := c.CollectWSTLSFiles(func(ref string) ([]byte, error) { return []byte(ref), nil })
+	stored, err := c.CollectWSTLSFiles(func(ref string) ([]byte, error) { return []byte(ref), nil })
 	if err != nil {
 		t.Fatalf("CollectWSTLSFiles: %v", err)
 	}
 	equal(t, "ca.pem", c.Peers[0].WSTLSCA)
 	equal(t, "ca-2.pem", c.Peers[0].WSTLSCert)
-	equal(t, map[string]string{`C:\x\ca.pem`: "ca-2.pem"}, copied)
+	equal(t, map[string]string{"ca.pem": "ca.pem", `C:\x\ca.pem`: "ca-2.pem"}, stored)
 }
 
 func TestCollectWSTLSFiles_Errors(t *testing.T) {
