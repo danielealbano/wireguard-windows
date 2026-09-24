@@ -56,12 +56,36 @@ type Interface struct {
 	Comments SectionComments
 }
 
+type WSMode string
+
+const (
+	WSModeNone      WSMode = ""
+	WSModeWebSocket WSMode = "websocket"
+	WSModeWSTunnel  WSMode = "wstunnel"
+)
+
 type Peer struct {
 	PublicKey           Key
 	PresharedKey        Key
 	AllowedIPs          []netip.Prefix
 	Endpoint            Endpoint
 	PersistentKeepalive uint16
+
+	// WebSocket/wstunnel transport (see docs/PROJECT.md). WSMode is empty for a UDP
+	// peer. WSURL is the verbatim ws(s):// Endpoint; Endpoint then holds its host:port.
+	// Timings are milliseconds, 0 meaning the transport's default.
+	WSMode         WSMode
+	WSURL          string
+	WSTunnelTarget string
+	WSBearer       string
+	WSMask         bool
+	WSTLSCA        string
+	WSTLSCert      string
+	WSTLSKey       string
+	WSTLSInsecure  bool
+	WSPingInterval uint32
+	WSBackoffMin   uint32
+	WSBackoffMax   uint32
 
 	RxBytes           Bytes
 	TxBytes           Bytes
@@ -104,6 +128,15 @@ func (conf *Config) IntersectsWith(other *Config) bool {
 			if allRoutes[a.Masked()] {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func (conf *Config) HasWebSocketPeers() bool {
+	for i := range conf.Peers {
+		if conf.Peers[i].WSMode != WSModeNone {
+			return true
 		}
 	}
 	return false
@@ -263,6 +296,7 @@ func (conf *Config) Redact() {
 		conf.Peers[i].PublicKey = Key{}
 		binary.LittleEndian.PutUint64(conf.Peers[i].PublicKey[:8], uint64(i))
 		conf.Peers[i].PresharedKey = Key{}
+		conf.Peers[i].WSBearer = ""
 		conf.Peers[i].Comments = SectionComments{}
 	}
 	conf.TrailingComments = nil
