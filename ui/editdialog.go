@@ -7,6 +7,7 @@ package ui
 
 import (
 	"net/netip"
+	"sort"
 	"strings"
 
 	"github.com/lxn/walk"
@@ -340,6 +341,26 @@ func (dlg *EditDialog) onSaveButtonClicked() {
 		return
 	}
 
+	copied, err := cfg.CollectWSTLSFiles(conf.WSTLSFileReader(dlg.config.WSTLSFiles, ""))
+	if err != nil {
+		showErrorCustom(dlg, l18n.Sprintf("Unable to create new configuration"), err.Error())
+		return
+	}
+	if len(copied) > 0 {
+		walk.MsgBox(dlg, l18n.Sprintf("TLS files copied"), wsTLSCopiedMessage(copied), walk.MsgBoxIconInformation)
+	}
+
 	dlg.config = *cfg
 	dlg.Accept()
+}
+
+// wsTLSCopiedMessage discloses which TLS files are copied into the tunnel's encrypted
+// storage and the names the configuration now uses for them.
+func wsTLSCopiedMessage(copied map[string]string) string {
+	lines := make([]string, 0, len(copied))
+	for ref, name := range copied {
+		lines = append(lines, l18n.Sprintf("%s → %s", ref, name))
+	}
+	sort.Strings(lines)
+	return l18n.Sprintf("These TLS files are stored, encrypted, with the tunnel, and the configuration now refers to them by name:\n\n%s", strings.Join(lines, "\n"))
 }
