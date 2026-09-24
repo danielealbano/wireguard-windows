@@ -43,8 +43,10 @@ func (s *ManagerService) StoredConfig(tunnelName string) (*conf.Config, error) {
 	}
 	if s.elevatedToken == 0 {
 		conf.Redact()
-	} else if err := conf.LoadWSTLSFiles(); err != nil {
-		log.Printf("[%s] %v", tunnelName, err)
+	} else {
+		// This runs every second while a stopped tunnel is shown, so a TLS file that cannot
+		// be loaded is not logged here: the editor, the export and the tunnel start report it.
+		_ = conf.LoadWSTLSFiles()
 	}
 	return conf, nil
 }
