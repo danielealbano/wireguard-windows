@@ -199,7 +199,7 @@ the tunnel, manager or UI flows are also validated end to end on the Windows VM 
 - Go tests (Windows-only): `conf/parser_test.go`, `conf/websocket_test.go`, `conf/wstls_test.go`,
   `conf/store_test.go` (upstream, untagged) and `conf/wstls_store_test.go` (`integration` tag), which write to the real Program
   Files store), `conf/dpapi/dpapi_windows_test.go`, `ringlogger/cli_test.go`,
-  `tunnel/defaultroutemonitor_test.go`, `tunnel/firewall/types_windows_test.go`,
+  `tunnel/defaultroutemonitor_test.go`, `tunnel/mtumonitor_test.go`, `tunnel/firewall/types_windows_test.go`,
   `tunnel/winipcfg/{types_test,winipcfg_test}.go` (`winipcfg_test` needs elevation and a specially named
   adapter), `ui/syntax/highlighter_test.go`, `updater/{updater_test, winhttp/winhttp_test}.go` (need
   the official signature/network), `version/certificate_test.go`. There are NO tests for `manager/`,
