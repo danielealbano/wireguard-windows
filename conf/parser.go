@@ -81,21 +81,19 @@ func isWSURL(s string) bool {
 // parseWSURL accepts ws(s)://host:port[/path[?query][#fragment]]: the scheme is
 // case-insensitive, the port is mandatory, userinfo is rejected, and a query or
 // fragment requires a path. It returns the URL's host:port as the peer endpoint.
-// redactWSURL hides the userinfo of a URL, which may hold a password, from error messages.
+// redactWSURL hides the host part of a URL, including any userinfo, which may hold a
+// password, from error messages. The host part ends at the first '/' after the last '@',
+// since a password may itself contain '/', '?' or '#'.
 func redactWSURL(s string) string {
 	scheme, rest, ok := strings.Cut(s, "://")
 	if !ok {
-		return s
+		return "xxxxx"
 	}
-	authorityEnd := strings.IndexAny(rest, "/?#")
-	if authorityEnd < 0 {
-		authorityEnd = len(rest)
+	afterUserinfo := rest[strings.LastIndexByte(rest, '@')+1:]
+	if slash := strings.IndexByte(afterUserinfo, '/'); slash >= 0 {
+		return scheme + "://xxxxx" + afterUserinfo[slash:]
 	}
-	at := strings.LastIndexByte(rest[:authorityEnd], '@')
-	if at < 0 {
-		return s
-	}
-	return scheme + "://xxxxx" + rest[at:]
+	return scheme + "://xxxxx"
 }
 
 func parseWSURL(s string) (*Endpoint, error) {
@@ -108,7 +106,7 @@ func parseWSURL(s string) (*Endpoint, error) {
 		return nil, &ParseError{l18n.Sprintf("WebSocket endpoint URL must not contain a user name or password"), redactWSURL(s)}
 	}
 	if u.Path == "" && (u.RawQuery != "" || u.ForceQuery || u.Fragment != "") {
-		return nil, &ParseError{l18n.Sprintf("WebSocket endpoint URL query or fragment requires a path"), redactWSURL(s)}
+		return nil, &ParseError{l18n.Sprintf("WebSocket endpoint URL query or fragment requires a path"), s}
 	}
 	host, port := u.Hostname(), u.Port()
 	if host == "" || port == "" {

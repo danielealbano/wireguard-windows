@@ -305,6 +305,9 @@ func TestFromWgQuick_WebSocketURLPassword_NotInErrors(t *testing.T) {
 		{name: "userinfo and query without path", endpoint: "wss://user:S3cretPw@vpn.example.com:443?x=1"},
 		{name: "userinfo and missing port", endpoint: "wss://user:S3cretPw@vpn.example.com/ws"},
 		{name: "userinfo and unparsable URL", endpoint: "wss://user:S3cretPw@vpn example.com:443/%zz"},
+		{name: "slash in the password", endpoint: "wss://user:S3cret/Pw@vpn.example.com:443/ws"},
+		{name: "question mark in the password", endpoint: "wss://user:S3cret?Pw@vpn.example.com:443/ws"},
+		{name: "hash in the password cuts the line", endpoint: "wss://user:S3cret#Pw@vpn.example.com:443/ws"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -312,7 +315,7 @@ func TestFromWgQuick_WebSocketURLPassword_NotInErrors(t *testing.T) {
 			if err == nil {
 				t.Fatal("FromWgQuick accepted the URL")
 			}
-			if strings.Contains(err.Error(), "S3cretPw") {
+			if strings.Contains(err.Error(), "S3cret") {
 				t.Fatalf("error leaks the URL password: %v", err)
 			}
 		})
@@ -323,10 +326,12 @@ func TestRedactWSURL(t *testing.T) {
 	tests := []struct {
 		in, want string
 	}{
-		{in: "wss://user:pw@host:443/p?q#f", want: "wss://xxxxx@host:443/p?q#f"},
-		{in: "ws://host:80/a@b", want: "ws://host:80/a@b"},
-		{in: "ws://host:80", want: "ws://host:80"},
-		{in: "not a url", want: "not a url"},
+		{in: "wss://user:pw@host:443/p?q#f", want: "wss://xxxxx/p?q#f"},
+		{in: "wss://alice:pa/ss@vpn.example.com:443/ws", want: "wss://xxxxx/ws"},
+		{in: "wss://alice:pa?ss@vpn.example.com:443", want: "wss://xxxxx"},
+		{in: "wss://alice:pa", want: "wss://xxxxx"},
+		{in: "ws://host:bad/x", want: "ws://xxxxx/x"},
+		{in: "not a url", want: "xxxxx"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
