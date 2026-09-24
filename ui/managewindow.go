@@ -29,7 +29,7 @@ type ManageTunnelsWindow struct {
 }
 
 const (
-	manageWindowWindowClass = "WireGuard UI - Manage Tunnels"
+	manageWindowWindowClass = "WireGuard WS UI - Manage Tunnels"
 	raiseMsg                = win.WM_USER + 0x3510
 	aboutWireGuardCmd       = 0x37
 )
@@ -56,7 +56,7 @@ func NewManageTunnelsWindow() (*ManageTunnelsWindow, error) {
 	}
 
 	mtw := new(ManageTunnelsWindow)
-	mtw.SetName("WireGuard")
+	mtw.SetName("WireGuard WS")
 
 	err = walk.InitWindow(mtw, nil, manageWindowWindowClass, win.WS_OVERLAPPEDWINDOW, win.WS_EX_CONTROLPARENT)
 	if err != nil {
@@ -69,7 +69,7 @@ func NewManageTunnelsWindow() (*ManageTunnelsWindow, error) {
 	if icon, err := loadLogoIcon(32); err == nil {
 		mtw.SetIcon(icon)
 	}
-	mtw.SetTitle("WireGuard")
+	mtw.SetTitle("WireGuard WS")
 	mtw.SetFont(font)
 	mtw.SetSize(walk.Size{675, 525})
 	mtw.SetMinMaxSize(walk.Size{500, 400}, walk.Size{0, 0})
