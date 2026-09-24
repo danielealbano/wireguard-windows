@@ -330,6 +330,34 @@ func (s stringSpan) isValidEndpoint() bool {
 	return false
 }
 
+func (s stringSpan) isValidWSMode() bool {
+	return s.isCaselessSame("websocket") || s.isCaselessSame("wstunnel")
+}
+
+func (s stringSpan) isValidWSBool() bool {
+	return s.isSame("true") || s.isSame("false")
+}
+
+func (s stringSpan) isValidWSMillis() bool {
+	return s.isValidUint(false, 0, (1<<32)-1)
+}
+
+func (s stringSpan) isValidWSURL() bool {
+	authorityStart := 0
+	if s.len > 5 && (stringSpan{s.s, 5}).isCaselessSame("ws://") {
+		authorityStart = 5
+	} else if s.len > 6 && (stringSpan{s.s, 6}).isCaselessSame("wss://") {
+		authorityStart = 6
+	} else {
+		return false
+	}
+	authorityLen := 0
+	for authorityStart+authorityLen < s.len && *s.at(authorityStart + authorityLen) != '/' {
+		authorityLen++
+	}
+	return stringSpan{s.at(authorityStart), authorityLen}.isValidEndpoint()
+}
+
 func (s stringSpan) isValidNetwork() bool {
 	for i := 0; i < s.len; i++ {
 		if *s.at(i) == '/' {
@@ -376,6 +404,17 @@ const (
 	fieldAllowedIPs
 	fieldEndpoint
 	fieldPersistentKeepalive
+	fieldWSMode
+	fieldWSTunnelTarget
+	fieldWSBearer
+	fieldWSMask
+	fieldWSTLSCA
+	fieldWSTLSCert
+	fieldWSTLSKey
+	fieldWSTLSInsecure
+	fieldWSPingInterval
+	fieldWSBackoffMin
+	fieldWSBackoffMax
 	fieldInvalid
 )
 
@@ -421,6 +460,28 @@ func (s stringSpan) field() field {
 		return fieldPreDown
 	case s.isCaselessSame("PostDown"):
 		return fieldPostDown
+	case s.isCaselessSame("WSMode"):
+		return fieldWSMode
+	case s.isCaselessSame("WSTunnelTarget"):
+		return fieldWSTunnelTarget
+	case s.isCaselessSame("WSBearer"):
+		return fieldWSBearer
+	case s.isCaselessSame("WSMask"):
+		return fieldWSMask
+	case s.isCaselessSame("WSTLSCA"):
+		return fieldWSTLSCA
+	case s.isCaselessSame("WSTLSCert"):
+		return fieldWSTLSCert
+	case s.isCaselessSame("WSTLSKey"):
+		return fieldWSTLSKey
+	case s.isCaselessSame("WSTLSInsecure"):
+		return fieldWSTLSInsecure
+	case s.isCaselessSame("WSPingInterval"):
+		return fieldWSPingInterval
+	case s.isCaselessSame("WSBackoffMin"):
+		return fieldWSBackoffMin
+	case s.isCaselessSame("WSBackoffMax"):
+		return fieldWSBackoffMax
 	}
 	return fieldInvalid
 }
@@ -525,6 +586,10 @@ func (hsa *highlightSpanArray) highlightValue(parent, s stringSpan, section fiel
 	case fieldPersistentKeepalive:
 		hsa.append(parent.s, s, validateHighlight(s.isValidPersistentKeepAlive(), highlightKeepalive))
 	case fieldEndpoint:
+		if s.isValidWSURL() {
+			hsa.append(parent.s, s, highlightHost)
+			break
+		}
 		if !s.isValidEndpoint() {
 			hsa.append(parent.s, s, highlightError)
 			break
@@ -541,6 +606,16 @@ func (hsa *highlightSpanArray) highlightValue(parent, s stringSpan, section fiel
 		hsa.append(parent.s, stringSpan{s.at(colon + 1), s.len - colon - 1}, highlightPort)
 	case fieldAddress, fieldDNS, fieldAllowedIPs:
 		hsa.highlightMultivalue(parent, s, section)
+	case fieldWSMode:
+		hsa.append(parent.s, s, validateHighlight(s.isValidWSMode(), highlightHost))
+	case fieldWSTunnelTarget:
+		hsa.append(parent.s, s, validateHighlight(s.isValidEndpoint(), highlightHost))
+	case fieldWSBearer, fieldWSTLSCA, fieldWSTLSCert, fieldWSTLSKey:
+		hsa.append(parent.s, s, validateHighlight(s.len != 0, highlightHost))
+	case fieldWSMask, fieldWSTLSInsecure:
+		hsa.append(parent.s, s, validateHighlight(s.isValidWSBool(), highlightHost))
+	case fieldWSPingInterval, fieldWSBackoffMin, fieldWSBackoffMax:
+		hsa.append(parent.s, s, validateHighlight(s.isValidWSMillis(), highlightKeepalive))
 	default:
 		hsa.append(parent.s, s, highlightError)
 	}
