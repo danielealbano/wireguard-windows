@@ -37,6 +37,10 @@ type Config struct {
 	Interface Interface
 	Peers     []Peer
 
+	// WSTLSFiles carries the contents of the stored TLS files the peers refer to, by
+	// file name, between the UI and the manager; it is not part of the wg-quick text.
+	WSTLSFiles map[string][]byte
+
 	TrailingComments []string
 }
 
@@ -300,4 +304,5 @@ func (conf *Config) Redact() {
 		conf.Peers[i].Comments = SectionComments{}
 	}
 	conf.TrailingComments = nil
+	conf.WSTLSFiles = nil
 }

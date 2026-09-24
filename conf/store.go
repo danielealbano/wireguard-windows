@@ -137,7 +137,11 @@ func DeleteName(name string) error {
 	if err != nil {
 		return err
 	}
-	return os.Remove(filepath.Join(configFileDir, name+configFileSuffix))
+	err = os.Remove(filepath.Join(configFileDir, name+configFileSuffix))
+	if err != nil {
+		return err
+	}
+	return DeleteWSTLSFiles(name)
 }
 
 func (config *Config) Delete() error {
