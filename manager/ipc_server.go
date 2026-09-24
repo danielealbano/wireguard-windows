@@ -52,6 +52,16 @@ func (s *ManagerService) RuntimeConfig(tunnelName string) (*conf.Config, error) 
 	if err != nil {
 		return nil, err
 	}
+	if storedConfig.HasWebSocketPeers() {
+		conf, err := uapiRuntimeConfig(storedConfig)
+		if err != nil {
+			return nil, err
+		}
+		if s.elevatedToken == 0 {
+			conf.Redact()
+		}
+		return conf, nil
+	}
 	driverAdapter, err := findDriverAdapter(tunnelName)
 	if err != nil {
 		return nil, err
