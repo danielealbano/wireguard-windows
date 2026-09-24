@@ -452,6 +452,66 @@
             "translatorComment": "Copied from source."
         },
         {
+            "id": "Invalid WebSocket endpoint URL",
+            "message": "Invalid WebSocket endpoint URL",
+            "translation": ""
+        },
+        {
+            "id": "WebSocket endpoint URL must not contain a user name or password",
+            "message": "WebSocket endpoint URL must not contain a user name or password",
+            "translation": ""
+        },
+        {
+            "id": "WebSocket endpoint URL query or fragment requires a path",
+            "message": "WebSocket endpoint URL query or fragment requires a path",
+            "translation": ""
+        },
+        {
+            "id": "Invalid WebSocket mode",
+            "message": "Invalid WebSocket mode",
+            "translation": ""
+        },
+        {
+            "id": "Value must be true or false",
+            "message": "Value must be true or false",
+            "translation": ""
+        },
+        {
+            "id": "Invalid millisecond count",
+            "message": "Invalid millisecond count",
+            "translation": ""
+        },
+        {
+            "id": "A WebSocket endpoint requires WSMode",
+            "message": "A WebSocket endpoint requires WSMode",
+            "translation": ""
+        },
+        {
+            "id": "WSMode requires a ws:// or wss:// endpoint",
+            "message": "WSMode requires a ws:// or wss:// endpoint",
+            "translation": ""
+        },
+        {
+            "id": "WSMode = wstunnel requires a ws:// or wss:// endpoint",
+            "message": "WSMode = wstunnel requires a ws:// or wss:// endpoint",
+            "translation": ""
+        },
+        {
+            "id": "WSMode = wstunnel requires WSTunnelTarget",
+            "message": "WSMode = wstunnel requires WSTunnelTarget",
+            "translation": ""
+        },
+        {
+            "id": "WSTunnelTarget requires WSMode = wstunnel",
+            "message": "WSTunnelTarget requires WSMode = wstunnel",
+            "translation": ""
+        },
+        {
+            "id": "WebSocket settings require WSMode",
+            "message": "WebSocket settings require WSMode",
+            "translation": ""
+        },
+        {
             "id": "Invalid MTU",
             "message": "Invalid MTU",
             "translation": "Napačen MTU",
@@ -528,6 +588,11 @@
             "translatorComment": "Copied from source."
         },
         {
+            "id": "Invalid WSTunnelTarget",
+            "message": "Invalid WSTunnelTarget",
+            "translation": ""
+        },
+        {
             "id": "Invalid key for [Peer] section",
             "message": "Invalid key for [Peer] section",
             "translation": "Napačen ključ za odsek [Peer]",
@@ -550,6 +615,111 @@
             "message": "All peers must have public keys",
             "translation": "Vsi vrstniki morajo imeti javni ključ",
             "translatorComment": "Copied from source."
+        },
+        {
+            "id": "Number must be a number between 0 and 2^64-1: {Err}",
+            "message": "Number must be a number between 0 and 2^64-1: {Err}",
+            "translation": "",
+            "placeholders": [
+                {
+                    "id": "Err",
+                    "string": "%[1]v",
+                    "type": "error",
+                    "underlyingType": "interface{Error() string}",
+                    "argNum": 1,
+                    "expr": "err"
+                }
+            ]
+        },
+        {
+            "id": "Error in getting configuration",
+            "message": "Error in getting configuration",
+            "translation": ""
+        },
+        {
+            "id": "Invalid key for interface section",
+            "message": "Invalid key for interface section",
+            "translation": ""
+        },
+        {
+            "id": "Protocol version must be 1",
+            "message": "Protocol version must be 1",
+            "translation": ""
+        },
+        {
+            "id": "Invalid key for peer section",
+            "message": "Invalid key for peer section",
+            "translation": ""
+        },
+        {
+            "id": "Unable to read TLS file {Ref}",
+            "message": "Unable to read TLS file {Ref}",
+            "translation": "",
+            "placeholders": [
+                {
+                    "id": "Ref",
+                    "string": "%[1]q",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "*ref"
+                }
+            ]
+        },
+        {
+            "id": "TLS file is too large",
+            "message": "TLS file is too large",
+            "translation": ""
+        },
+        {
+            "id": "Too many TLS files",
+            "message": "Too many TLS files",
+            "translation": ""
+        },
+        {
+            "id": "Missing contents of stored TLS file",
+            "message": "Missing contents of stored TLS file",
+            "translation": ""
+        },
+        {
+            "id": "TLS file must be a stored file name or an absolute local path",
+            "message": "TLS file must be a stored file name or an absolute local path",
+            "translation": ""
+        },
+        {
+            "id": "Unexpected stored TLS file",
+            "message": "Unexpected stored TLS file",
+            "translation": ""
+        },
+        {
+            "id": "the path must be absolute or the name of a file stored with the tunnel",
+            "message": "the path must be absolute or the name of a file stored with the tunnel",
+            "translation": ""
+        },
+        {
+            "id": "the file is too large",
+            "message": "the file is too large",
+            "translation": ""
+        },
+        {
+            "id": "Unable to load stored TLS file {Name}",
+            "message": "Unable to load stored TLS file {Name}",
+            "translation": "",
+            "placeholders": [
+                {
+                    "id": "Name",
+                    "string": "%[1]q",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "name"
+                }
+            ]
+        },
+        {
+            "id": "TLS file must be an absolute local path",
+            "message": "TLS file must be an absolute local path",
+            "translation": ""
         },
         {
             "id": "[EnumerationSeparator]",
@@ -721,6 +891,61 @@
             "translatorComment": "Copied from source."
         },
         {
+            "id": "WebSocket mode:",
+            "message": "WebSocket mode:",
+            "translation": ""
+        },
+        {
+            "id": "wstunnel target:",
+            "message": "wstunnel target:",
+            "translation": ""
+        },
+        {
+            "id": "WebSocket bearer:",
+            "message": "WebSocket bearer:",
+            "translation": ""
+        },
+        {
+            "id": "Mask WebSocket frames:",
+            "message": "Mask WebSocket frames:",
+            "translation": ""
+        },
+        {
+            "id": "TLS CA certificate:",
+            "message": "TLS CA certificate:",
+            "translation": ""
+        },
+        {
+            "id": "TLS client certificate:",
+            "message": "TLS client certificate:",
+            "translation": ""
+        },
+        {
+            "id": "TLS client key:",
+            "message": "TLS client key:",
+            "translation": ""
+        },
+        {
+            "id": "Skip TLS verification:",
+            "message": "Skip TLS verification:",
+            "translation": ""
+        },
+        {
+            "id": "WebSocket ping interval (ms):",
+            "message": "WebSocket ping interval (ms):",
+            "translation": ""
+        },
+        {
+            "id": "Reconnect backoff min (ms):",
+            "message": "Reconnect backoff min (ms):",
+            "translation": ""
+        },
+        {
+            "id": "Reconnect backoff max (ms):",
+            "message": "Reconnect backoff max (ms):",
+            "translation": ""
+        },
+        {
             "id": "Latest handshake:",
             "message": "Latest handshake:",
             "translation": "Zadnje rokovanje:",
@@ -773,6 +998,16 @@
             "message": "enabled",
             "translation": "omogočeno",
             "translatorComment": "Copied from source."
+        },
+        {
+            "id": "WebSocket",
+            "message": "WebSocket",
+            "translation": ""
+        },
+        {
+            "id": "wstunnel",
+            "message": "wstunnel",
+            "translation": ""
         },
         {
             "id": "{String} received, {String_1} sent",
@@ -961,6 +1196,49 @@
             "translatorComment": "Copied from source."
         },
         {
+            "id": "TLS files copied",
+            "message": "TLS files copied",
+            "translation": ""
+        },
+        {
+            "id": "{Ref} → {Name}",
+            "message": "{Ref} → {Name}",
+            "translation": "",
+            "placeholders": [
+                {
+                    "id": "Ref",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "ref"
+                },
+                {
+                    "id": "Name",
+                    "string": "%[2]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "name"
+                }
+            ]
+        },
+        {
+            "id": "These TLS files are stored, encrypted, with the tunnel, and the configuration now refers to them by name:\n\n{Joinlines_n}",
+            "message": "These TLS files are stored, encrypted, with the tunnel, and the configuration now refers to them by name:\n\n{Joinlines_n}",
+            "translation": "",
+            "placeholders": [
+                {
+                    "id": "Joinlines_n",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "strings.Join(lines, \"\\n\")"
+                }
+            ]
+        },
+        {
             "id": "Writing file failed",
             "message": "Writing file failed",
             "translation": "Napaka pri pisanju v datoteko",
@@ -1127,10 +1405,9 @@
             ]
         },
         {
-            "id": "WireGuard: Deactivated",
-            "message": "WireGuard: Deactivated",
-            "translation": "WireGuard: Dezaktiviran",
-            "translatorComment": "Copied from source."
+            "id": "WireGuard WS: Deactivated",
+            "message": "WireGuard WS: Deactivated",
+            "translation": ""
         },
         {
             "id": "Status: Unknown",
@@ -1157,6 +1434,11 @@
             "translatorComment": "Copied from source."
         },
         {
+            "id": "\u0026About WireGuard WS…",
+            "message": "\u0026About WireGuard WS…",
+            "translation": ""
+        },
+        {
             "id": "E\u0026xit",
             "message": "E\u0026xit",
             "translation": "I\u0026zhod",
@@ -1169,10 +1451,9 @@
             "translatorComment": "Copied from source."
         },
         {
-            "id": "WireGuard Activated",
-            "message": "WireGuard Activated",
-            "translation": "WireGuard aktiviran",
-            "translatorComment": "Copied from source."
+            "id": "WireGuard WS Activated",
+            "message": "WireGuard WS Activated",
+            "translation": ""
         },
         {
             "id": "The {Name} tunnel has been activated.",
@@ -1191,10 +1472,9 @@
             ]
         },
         {
-            "id": "WireGuard Deactivated",
-            "message": "WireGuard Deactivated",
-            "translation": "WireGuard dezaktiviran",
-            "translatorComment": "Copied from source."
+            "id": "WireGuard WS Deactivated",
+            "message": "WireGuard WS Deactivated",
+            "translation": ""
         },
         {
             "id": "The {Name} tunnel has been deactivated.",
@@ -1213,16 +1493,14 @@
             ]
         },
         {
-            "id": "WireGuard Tunnel Error",
-            "message": "WireGuard Tunnel Error",
-            "translation": "Napaka tunela WireGuard",
-            "translatorComment": "Copied from source."
+            "id": "WireGuard WS Tunnel Error",
+            "message": "WireGuard WS Tunnel Error",
+            "translation": ""
         },
         {
-            "id": "WireGuard: {TextForStateglobalState_true}",
-            "message": "WireGuard: {TextForStateglobalState_true}",
-            "translation": "WireGuard: {TextForStateglobalState_true}",
-            "translatorComment": "Copied from source.",
+            "id": "WireGuard WS: {TextForStateglobalState_true}",
+            "message": "WireGuard WS: {TextForStateglobalState_true}",
+            "translation": "",
             "placeholders": [
                 {
                     "id": "TextForStateglobalState_true",
@@ -1399,6 +1677,37 @@
             ]
         },
         {
+            "id": "{Name}: {Ref} → {Name_1}",
+            "message": "{Name}: {Ref} → {Name_1}",
+            "translation": "",
+            "placeholders": [
+                {
+                    "id": "Name",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "unparsedConfig.Name"
+                },
+                {
+                    "id": "Ref",
+                    "string": "%[2]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "ref"
+                },
+                {
+                    "id": "Name_1",
+                    "string": "%[3]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 3,
+                    "expr": "name"
+                }
+            ]
+        },
+        {
             "id": "Unable to import configuration: {LastErr}",
             "message": "Unable to import configuration: {LastErr}",
             "translation": "Napaka pri uvozu konfiguracije: {LastErr}",
@@ -1495,6 +1804,11 @@
                     "expr": "n"
                 }
             ]
+        },
+        {
+            "id": "the file is not in the archive",
+            "message": "the file is not in the archive",
+            "translation": ""
         },
         {
             "id": "Unable to create tunnel",
