@@ -52,7 +52,6 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
 | `l18n/`, `locales/`, `gotext.go`, `zgotext.go` | Localization |
 | `installer/` | WiX MSI sources, C custom actions, `fetcher/` bootstrapper |
 | `embeddable-dll-service/` | `tunnel.dll` for embedding + C# demo — **out of scope for this fork** |
-| `.overlay/` | Upstream's Go stdlib crypto overlays; **not applied** by this fork's builds (they cannot build `crypto/tls`) |
 | `wintun/` | Copy of the `golang.zx2c4.com/wintun` bindings (`wintun-go` `0fa3db229ce2`, MIT), replaced in `go.mod`, whose loader with `load_wintun_from_rsrc` reads `wintun.dll` from `RCDATA` |
 | `.github/workflows/` | CI (`ci.yml`) |
 | `resources.rc`, `manifest.xml` | Windows resources (icons, version info, embedded `wireguard.dll`, manifest) |

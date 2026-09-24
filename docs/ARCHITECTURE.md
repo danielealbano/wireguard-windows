@@ -236,8 +236,8 @@ flowchart LR
 ```
 
 `build.bat` (Windows) runs the whole pipeline; the Linux `Makefile` runs the `wireguard.exe` part only.
-The build no longer applies upstream's `.overlay` stubs of the standard library crypto, which cannot
-build `crypto/tls` (needed for `wss://`). `wintun/` holds a copy of the `golang.zx2c4.com/wintun`
+Upstream's `.overlay` stubs of the standard library crypto are removed: they cannot build
+`crypto/tls` (needed for `wss://`). `wintun/` holds a copy of the `golang.zx2c4.com/wintun`
 bindings, replaced in `go.mod`, that loads `wintun.dll` from `RCDATA` through `driver/memmod`, like
 `driver/` loads `wireguard.dll`.
 

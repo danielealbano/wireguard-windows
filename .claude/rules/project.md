@@ -50,7 +50,7 @@ Versions are authoritative in `go.mod`, `Makefile`, `build.bat`, `installer/buil
 | Userspace backend | **`danielealbano/wireguard-go` v1.3.1** over **Wintun 0.14.1** | `replace golang.zx2c4.com/wireguard` in `go.mod`; `wintun.dll` embedded as `RCDATA`, loaded in-memory by the `wintun/` copy of the bindings (`replace golang.zx2c4.com/wintun => ./wintun`, build tag `load_wintun_from_rsrc`). Tunnels with a WebSocket peer. |
 | UI | **lxn/walk** + **lxn/win** (Win32) | Replaced by upstream-maintained forks (`golang.zx2c4.com/wireguard/windows` `pkg/walk` / `pkg/walk-win`) in `go.mod`. Raw-text config editor with a Go syntax highlighter (`ui/syntax`). |
 | Windows APIs | `golang.org/x/sys/windows`, mkwinsyscall-generated bindings (`zsyscall_windows.go`, `zwinipcfg_windows.go`) | WFP firewall (`tunnel/firewall`), IP Helper (`tunnel/winipcfg`), SCM services, DPAPI (`conf/dpapi`). |
-| Stdlib overlay | `.overlay/` (upstream) | **Not applied** by this fork's builds: its crypto stubs cannot build `crypto/tls`, which `wss://` needs. |
+| Stdlib overlay | none | Upstream's `.overlay/` (stubs of the standard library crypto applied with `go build -overlay`) was removed: it cannot build `crypto/tls`, which `wss://` needs. |
 | Localization | `golang.org/x/text/message` catalogs | `locales/*/messages.gotext.json` (Crowdin-managed) → generated `zgotext.go` via `go generate`; `l18n.Sprintf`. |
 | CLI tool | `wg.exe` from the **`danielealbano/wireguard-tools` fork** | `build.bat` builds it from the fork pinned at `68b49a93` (GitHub archive, SHA-256 verified) with llvm-mingw. |
 | Installer | **WiX 3.14.1** MSI (`installer/`) | Windows-only build; C custom actions (`customactions.c`); per-arch `UpgradeCode`s; `installer/fetcher` bootstrapper (upstream's, not built). Product "WireGuard WS", publisher Daniele Salvatore Albano, own `UpgradeCode`s; output `installer\dist\wireguard-ws-<arch>-<version>.msi`. |
@@ -153,7 +153,7 @@ All commits MUST use one of the scopes below. A commit spanning multiple scopes 
 | `driver` | `driver/` (WireGuardNT bindings, memmod), `wintun/` (Wintun bindings) |
 | `updater` | `updater/`, `version/` |
 | `l18n` | `l18n/`, `locales/`, `zgotext.go`, `gotext.go` |
-| `build` | `Makefile`, `build.bat`, `resources.rc`, `manifest.xml`, `.overlay/`, `quickinstall.bat` |
+| `build` | `Makefile`, `build.bat`, `resources.rc`, `manifest.xml`, `quickinstall.bat` |
 | `installer` | `installer/` |
 | `docs` | `docs/` (PROJECT, ARCHITECTURE, upstream docs, plans) |
 | `deps` | Dependency-only updates (`go.mod`/`go.sum`, pinned downloads) |
