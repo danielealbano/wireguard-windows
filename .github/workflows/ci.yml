@@ -52,10 +52,10 @@ jobs:
                     for (i = 0; i < count; i++) print file ":" start + i }' > "$RUNNER_TEMP/changed-lines.txt"
           pkgs=$(git diff --name-only --diff-filter=d "$base" HEAD -- '*.go' ':!wintun' | xargs -n1 dirname | sort -u | sed 's#^#./#')
           # go vet's errors go to the filtered file below, so fail here if a package cannot be loaded.
-          go list $pkgs > /dev/null
+          go list -tags integration $pkgs > /dev/null
           status=0
           for arch in amd64 arm64; do
-            GOARCH=$arch go vet $pkgs 2> "$RUNNER_TEMP/vet-$arch.txt" || true
+            GOARCH=$arch go vet -tags integration $pkgs 2> "$RUNNER_TEMP/vet-$arch.txt" || true
             tr '\\' '/' < "$RUNNER_TEMP/vet-$arch.txt" | awk -F: -v arch=$arch '
               NR == FNR { changed[$0]; next }
               /\.go:[0-9]+:/ && (($1 ":" $2) in changed) { print "new go vet finding (" arch "): " $0; bad = 1 }
