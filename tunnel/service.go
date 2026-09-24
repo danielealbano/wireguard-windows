@@ -138,13 +138,14 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 		return
 	}
 	config.DeduplicateNetworkEntries()
+
+	log.SetPrefix(fmt.Sprintf("[%s] ", config.Name))
+
 	removeWSTLSFiles, err = config.PrepareWSTLSFiles(conf.PathIsEncrypted(service.Path))
 	if err != nil {
 		serviceError = services.ErrorLoadConfiguration
 		return
 	}
-
-	log.SetPrefix(fmt.Sprintf("[%s] ", config.Name))
 
 	services.PrintStarting()
 
