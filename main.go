@@ -51,10 +51,6 @@ func fatal(v ...any) {
 	}
 }
 
-func fatalf(format string, v ...any) {
-	fatal(l18n.Sprintf(format, v...))
-}
-
 func info(title, format string, v ...any) {
 	if log.Writer() == io.Discard {
 		windows.MessageBox(0, windows.StringToUTF16Ptr(l18n.Sprintf(format, v...)), windows.StringToUTF16Ptr(title), windows.MB_ICONINFORMATION)
@@ -112,10 +108,10 @@ func checkForWow64() {
 		return b, nil
 	}()
 	if err != nil {
-		fatalf("Unable to determine whether the process is running under WOW64: %v", err)
+		fatal(l18n.Sprintf("Unable to determine whether the process is running under WOW64: %v", err))
 	}
 	if b {
-		fatalf("You must use the native version of WireGuard on this computer.")
+		fatal(l18n.Sprintf("You must use the native version of WireGuard on this computer."))
 	}
 }
 
@@ -124,18 +120,18 @@ func checkForAdminGroup() {
 	var processToken windows.Token
 	err := windows.OpenProcessToken(windows.CurrentProcess(), windows.TOKEN_QUERY|windows.TOKEN_DUPLICATE, &processToken)
 	if err != nil {
-		fatalf("Unable to open current process token: %v", err)
+		fatal(l18n.Sprintf("Unable to open current process token: %v", err))
 	}
 	defer processToken.Close()
 	if !elevate.TokenIsElevatedOrElevatable(processToken) {
-		fatalf("WireGuard may only be used by users who are a member of the Builtin %s group.", elevate.AdminGroupName())
+		fatal(l18n.Sprintf("WireGuard may only be used by users who are a member of the Builtin %s group.", elevate.AdminGroupName()))
 	}
 }
 
 func checkForAdminDesktop() {
 	adminDesktop, err := elevate.IsAdminDesktop()
 	if !adminDesktop && err == nil {
-		fatalf("WireGuard is running, but the UI is only accessible from desktops of the Builtin %s group.", elevate.AdminGroupName())
+		fatal(l18n.Sprintf("WireGuard is running, but the UI is only accessible from desktops of the Builtin %s group.", elevate.AdminGroupName()))
 	}
 }
 
@@ -194,7 +190,7 @@ func main() {
 		}
 		checkForAdminDesktop()
 		time.Sleep(30 * time.Second)
-		fatalf("WireGuard system tray icon did not appear after 30 seconds.")
+		fatal(l18n.Sprintf("WireGuard system tray icon did not appear after 30 seconds."))
 		return
 	case "/uninstallmanagerservice":
 		if len(os.Args) != 2 {
