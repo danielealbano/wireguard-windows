@@ -41,6 +41,9 @@ type defaultRouteFamily struct {
 	blackhole bool
 	hosts     []netip.Prefix
 	gateway   defaultGateway
+	// incomplete is set while not every host route is known to go through gateway, so
+	// that a failed AddRoute is retried at the next route change.
+	incomplete bool
 }
 
 type defaultGateway struct {
@@ -183,7 +186,6 @@ func (m *defaultRouteMonitor) update() {
 	movedHostRoutes, err := m.updateLocked()
 	if err != nil {
 		log.Printf("Unable to follow the default route: %v", err)
-		return
 	}
 	if movedHostRoutes {
 		log.Println("Reconnecting WebSocket peers after a default route change")
@@ -197,37 +199,51 @@ func (m *defaultRouteMonitor) update() {
 }
 
 // updateLocked reads the default gateways and moves the host routes of the families
-// whose gateway changed, reporting whether any host route moved.
+// whose gateway changed or whose routes are incomplete, reporting whether any host
+// route moved and the first error.
 func (m *defaultRouteMonitor) updateLocked() (bool, error) {
 	moved := false
+	var firstErr error
 	for i := range m.families {
 		f := &m.families[i]
 		gateway, err := findDefaultGateway(f.family, m.ourLUID)
 		if err != nil {
-			return moved, err
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
-		if gateway == f.gateway {
+		if gateway == f.gateway && !f.incomplete {
 			continue
 		}
 		if len(f.hosts) != 0 {
 			log.Printf("Routing WebSocket servers %v through interface %d", f.hosts, gateway.index)
 		}
 		previous := f.gateway
-		f.gateway = gateway
+		f.gateway, f.incomplete = gateway, true
 		for _, host := range f.hosts {
-			if previous.luid != 0 {
+			if previous.luid != 0 && previous != gateway {
 				previous.luid.DeleteRoute(host, previous.nextHop)
 			}
 			if gateway.luid != 0 {
-				err := gateway.luid.AddRoute(host, gateway.nextHop, 0)
+				err = gateway.luid.AddRoute(host, gateway.nextHop, 0)
 				if err != nil && err != windows.ERROR_OBJECT_ALREADY_EXISTS {
-					return moved, fmt.Errorf("unable to add host route %v: %w", host, err)
+					err = fmt.Errorf("unable to add host route %v: %w", host, err)
+					break
 				}
+				err = nil
 			}
 			moved = true
 		}
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		f.incomplete = false
 	}
-	return moved, nil
+	return moved, firstErr
 }
 
 func (m *defaultRouteMonitor) pinSocketsLocked() error {
