@@ -341,23 +341,34 @@ func (dlg *EditDialog) onSaveButtonClicked() {
 		return
 	}
 
-	stored, err := cfg.CollectWSTLSFiles(conf.WSTLSFileReader(dlg.config.WSTLSFiles, ""))
-	if err != nil {
-		showErrorCustom(dlg, l18n.Sprintf("Unable to create new configuration"), err.Error())
-		return
-	}
-	copied := make(map[string]string, len(stored))
-	for ref, name := range stored {
-		if _, alreadyStored := dlg.config.WSTLSFiles[ref]; !alreadyStored {
-			copied[ref] = name
-		}
-	}
-	if len(copied) > 0 {
-		walk.MsgBox(dlg, l18n.Sprintf("TLS files copied"), wsTLSCopiedMessage(copied), walk.MsgBoxIconInformation)
-	}
+	// Reading the TLS files the configuration refers to is disk I/O, so it runs off the UI thread.
+	known := dlg.config.WSTLSFiles
+	dlg.saveButton.SetEnabled(false)
+	go func() {
+		stored, err := cfg.CollectWSTLSFiles(conf.WSTLSFileReader(known, ""))
+		dlg.Synchronize(func() {
+			if dlg.IsDisposed() {
+				return
+			}
+			dlg.saveButton.SetEnabled(true)
+			if err != nil {
+				showErrorCustom(dlg, l18n.Sprintf("Unable to create new configuration"), err.Error())
+				return
+			}
+			copied := make(map[string]string, len(stored))
+			for ref, name := range stored {
+				if _, alreadyStored := known[ref]; !alreadyStored {
+					copied[ref] = name
+				}
+			}
+			if len(copied) > 0 {
+				walk.MsgBox(dlg, l18n.Sprintf("TLS files copied"), wsTLSCopiedMessage(copied), walk.MsgBoxIconInformation)
+			}
 
-	dlg.config = *cfg
-	dlg.Accept()
+			dlg.config = *cfg
+			dlg.Accept()
+		})
+	}()
 }
 
 // wsTLSCopiedMessage discloses which TLS files are copied into the tunnel's encrypted
