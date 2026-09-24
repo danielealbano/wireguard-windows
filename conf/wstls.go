@@ -6,9 +6,12 @@
 package conf
 
 import (
+	"archive/zip"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -134,11 +137,17 @@ func (config *Config) CollectWSTLSFiles(read func(ref string) ([]byte, error)) (
 	taken := make(map[string]bool)
 	names := make(map[string]string)
 	refs := config.wsTLSReferences()
-	// Stored file names keep their name, so claim them before naming copied files.
+	// Stored file names keep their name, so claim them before naming copied files. Names
+	// that differ only in case are the same file on Windows, so they share one spelling.
+	spellings := make(map[string]string)
 	for _, ref := range refs {
 		if WSTLSFileNameIsValid(*ref) {
-			names[*ref] = *ref
-			taken[strings.ToLower(*ref)] = true
+			lower := strings.ToLower(*ref)
+			if _, ok := spellings[lower]; !ok {
+				spellings[lower] = *ref
+			}
+			names[*ref] = spellings[lower]
+			taken[lower] = true
 		}
 	}
 	stored := make(map[string]string)
@@ -187,7 +196,12 @@ func (config *Config) ValidateWSTLSFiles() error {
 	if len(config.WSTLSFiles) > MaxWSTLSFiles {
 		return &ParseError{l18n.Sprintf("Too many TLS files"), fmt.Sprint(len(config.WSTLSFiles))}
 	}
+	lowerNames := make(map[string]bool, len(config.WSTLSFiles))
 	for name, data := range config.WSTLSFiles {
+		if lowerNames[strings.ToLower(name)] {
+			return &ParseError{l18n.Sprintf("Stored TLS file names must differ in more than letter case"), name}
+		}
+		lowerNames[strings.ToLower(name)] = true
 		if !WSTLSFileNameIsValid(name) || !referenced[name] {
 			return &ParseError{l18n.Sprintf("Unexpected stored TLS file"), name}
 		}
@@ -199,15 +213,19 @@ func (config *Config) ValidateWSTLSFiles() error {
 }
 
 // WSTLSFileReader returns a read function for CollectWSTLSFiles. A reference found in
-// known, keyed by its slash-separated form, comes from there; an absolute path is read
-// from disk; any other path is read relative to baseDir, or rejected when baseDir is
-// empty.
+// known, keyed by its slash-separated form, comes from there; an absolute path on a
+// local drive is read from disk, while UNC and device paths are rejected so that an
+// imported configuration cannot make Windows connect to a remote host; any other path is
+// read relative to baseDir, or rejected when baseDir is empty.
 func WSTLSFileReader(known map[string][]byte, baseDir string) func(ref string) ([]byte, error) {
 	return func(ref string) ([]byte, error) {
 		if data, ok := known[filepath.ToSlash(ref)]; ok {
 			return data, nil
 		}
 		path := ref
+		if filepath.IsAbs(path) && !IsWSTLSLocalPath(path) {
+			return nil, errors.New(l18n.Sprintf("the path must be on a local drive"))
+		}
 		if !filepath.IsAbs(path) {
 			if baseDir == "" {
 				return nil, errors.New(l18n.Sprintf("the path must be absolute or the name of a file stored with the tunnel"))
@@ -222,5 +240,45 @@ func WSTLSFileReader(known map[string][]byte, baseDir string) func(ref string) (
 			return nil, errors.New(l18n.Sprintf("the file is too large"))
 		}
 		return os.ReadFile(path)
+	}
+}
+
+// WSTLSZipFileReader returns a read function for CollectWSTLSFiles that resolves the TLS
+// file references of the configuration at confPath in an archive: a relative reference
+// is looked up in the folder named after the configuration, as the UI's zip export
+// writes it, then next to the configuration; an absolute path is read like
+// WSTLSFileReader does.
+func WSTLSZipFileReader(files map[string]*zip.File, confPath string) func(ref string) ([]byte, error) {
+	dir := path.Dir(confPath)
+	name := strings.TrimSuffix(path.Base(confPath), path.Ext(confPath))
+	readFromDisk := WSTLSFileReader(nil, "")
+	return func(ref string) ([]byte, error) {
+		if filepath.IsAbs(ref) {
+			return readFromDisk(ref)
+		}
+		rel := filepath.ToSlash(ref)
+		for _, candidate := range []string{path.Join(dir, name, rel), path.Join(dir, rel)} {
+			f, ok := files[candidate]
+			if !ok {
+				continue
+			}
+			if f.UncompressedSize64 > MaxWSTLSFileSize {
+				return nil, errors.New(l18n.Sprintf("the file is too large"))
+			}
+			rc, err := f.Open()
+			if err != nil {
+				return nil, err
+			}
+			defer rc.Close()
+			data, err := io.ReadAll(io.LimitReader(rc, MaxWSTLSFileSize+1))
+			if err != nil {
+				return nil, err
+			}
+			if len(data) > MaxWSTLSFileSize {
+				return nil, errors.New(l18n.Sprintf("the file is too large"))
+			}
+			return data, nil
+		}
+		return nil, errors.New(l18n.Sprintf("the file is not in the archive"))
 	}
 }

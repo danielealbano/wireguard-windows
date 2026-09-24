@@ -90,3 +90,40 @@ func TestWSTLSStore_FileBoundToTunnelName(t *testing.T) {
 		t.Error("a file copied from another tunnel was decrypted")
 	}
 }
+
+func TestWSTLSStore_StaleDecryptedFilesRemoved(t *testing.T) {
+	const name = "golangWSTLSStale"
+	t.Cleanup(func() { DeleteWSTLSFiles(name) })
+	writeStale := func() string {
+		t.Helper()
+		dir, err := wsTLSDirectory(true, wsTLSRuntimeDirectoryName, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stale := dir + `\key.pem`
+		if err := os.WriteFile(stale, []byte("plaintext key"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return stale
+	}
+
+	stale := writeStale()
+	c := wsTLSTestConfig(t, "")
+	c.Name = name
+	cleanup, err := c.PrepareWSTLSFiles(true)
+	if err != nil {
+		t.Fatalf("PrepareWSTLSFiles: %v", err)
+	}
+	cleanup()
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Errorf("PrepareWSTLSFiles left a stale decrypted file: %v", err)
+	}
+
+	stale = writeStale()
+	if err := DeleteWSTLSFiles(name); err != nil {
+		t.Fatalf("DeleteWSTLSFiles: %v", err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Errorf("DeleteWSTLSFiles left a decrypted file: %v", err)
+	}
+}
