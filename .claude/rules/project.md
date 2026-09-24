@@ -157,7 +157,7 @@ All commits MUST use one of the scopes below. A commit spanning multiple scopes 
 | `installer` | `installer/` |
 | `docs` | `docs/` (PROJECT, ARCHITECTURE, upstream docs, plans) |
 | `deps` | Dependency-only updates (`go.mod`/`go.sum`, pinned downloads) |
-| `ci` | CI workflows (`.github/workflows/`) |
+| `ci` | CI and release workflows (`.github/workflows/`) |
 
 ```
 feat(conf): parse the WSMode and WSTunnelTarget peer keys
@@ -183,6 +183,7 @@ with Ubuntu's GNU `windres` (it rejects `LANG_PERSIAN` in `resources.rc`, upstre
 | Vulncheck | `govulncheck ./...` (with `GOOS=windows`) |
 | Tests | on Windows, elevated, with `.deps\go\bin` and `.deps\bin` on `PATH`: `set CGO_ENABLED=1` + `set CC=x86_64-w64-mingw32-gcc` + `go test -race -count=1 -tags integration ./conf ./ui/syntax ./tunnel` (add any other changed package) |
 | Installer (Windows only) | `installer\build.bat` |
+| Release | bump `Number` in `version/version.go` (follows the embedded wireguard-go fork), merge, push tag `v<Number>` → `release.yml` drafts the GitHub release |
 | Mermaid check | validate all Mermaid blocks under `docs/` per `development_pipeline.md` §9 |
 
 **Quality gates** (per `development_pipeline.md` §2, `go.md`, `windows.md`, `ui.md`, scoped by the

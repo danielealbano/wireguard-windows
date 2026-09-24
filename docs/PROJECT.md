@@ -110,6 +110,15 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
   the wireguard-tools fork, Wintun and WireGuardNT, renders icons, compiles resources, builds
   `wireguard.exe` for x86/amd64/arm64 and `wg.exe`, and signs them when a `sign.bat` provides a signing
   identity. `installer\build.bat` builds the MSIs with WiX.
+- **Versioning**: `version/version.go` `Number` is the single version, read by `build.bat`, the
+  `Makefile`, the executable's version information and `installer\build.bat`. Like the Android fork,
+  it follows the embedded `danielealbano/wireguard-go` fork (1.3.1 embeds v1.3.1). The MSI compares
+  only the first three fields when upgrading, so each release must raise one of them.
+- **Release**: merge the version bump, then push the tag `v<Number>`; `.github/workflows/release.yml`
+  (`windows-latest`) checks the tag against `Number`, runs `build.bat` and `installer\build.bat`, and
+  creates a **draft** GitHub release with the three MSIs, a zip of `wireguard.exe` and `wg.exe` per
+  architecture and `SHA256SUMS`, to be reviewed and published by hand. Releases are not code-signed
+  yet.
 - **Distribution**: CI publishes each architecture's `wireguard.exe` and `wg.exe` as a zip artifact
   (running `wireguard.exe` installs the manager service) and the `wireguard-ws-<arch>-<version>.msi`
   installers. The MSI is the product "WireGuard WS" (publisher Daniele Salvatore Albano, its own

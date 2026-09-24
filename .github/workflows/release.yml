@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and draft the GitHub release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      # The tag must name the version in version/version.go, which build.bat,
+      # installer\build.bat and the MSIs take their version from.
+      - name: Check the tag against version/version.go
+        id: version
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          number=$(sed -n 's/^\s*Number\s*=\s*"\([0-9.]*\)"\s*$/\1/p' version/version.go)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "$version" != "$number" ]; then
+            echo "::error::Tag $TAG does not match version/version.go ($number); expected v$number"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build (build.bat)
+        shell: cmd
+        run: build.bat
+
+      - name: Build the MSIs (installer\build.bat)
+        shell: cmd
+        run: installer\build.bat
+
+      - name: Collect the release assets
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          New-Item -ItemType Directory release-assets | Out-Null
+          foreach ($arch in "x86", "amd64", "arm64") {
+            Copy-Item "installer\dist\wireguard-ws-$arch-$env:VERSION.msi" release-assets\
+            Compress-Archive -Path "$arch\wireguard.exe", "$arch\wg.exe" -DestinationPath "release-assets\wireguard-ws-$arch-$env:VERSION.zip"
+          }
+          Push-Location release-assets
+          Get-ChildItem -File | Sort-Object Name | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.Name -Algorithm SHA256).Hash.ToLower(), $_.Name } | Set-Content -Encoding ascii SHA256SUMS
+          Pop-Location
+          Get-ChildItem release-assets | Format-Table Name, Length -AutoSize | Out-String | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Create the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --draft --title "$TAG" --generate-notes release-assets/*
