@@ -50,7 +50,7 @@ func runAboutDialog(owner walk.Form) error {
 		showingAboutDialog = nil
 	}()
 	disposables.Add(showingAboutDialog)
-	showingAboutDialog.SetTitle(l18n.Sprintf("About WireGuard"))
+	showingAboutDialog.SetTitle(l18n.Sprintf("About WireGuard WS"))
 	showingAboutDialog.SetLayout(vbl)
 	if icon, err := loadLogoIcon(32); err == nil {
 		showingAboutDialog.SetIcon(icon)
@@ -66,7 +66,7 @@ func runAboutDialog(owner walk.Form) error {
 	iv.SetCursor(walk.CursorHand())
 	iv.MouseUp().Attach(func(x, y int, button walk.MouseButton) {
 		if button == walk.LeftButton {
-			win.ShellExecute(showingAboutDialog.Handle(), nil, windows.StringToUTF16Ptr("https://www.wireguard.com/"), nil, nil, win.SW_SHOWNORMAL)
+			win.ShellExecute(showingAboutDialog.Handle(), nil, windows.StringToUTF16Ptr("https://github.com/danielealbano/wireguard-windows"), nil, nil, win.SW_SHOWNORMAL)
 		} else if easterEggIndex >= 0 && button == walk.RightButton {
 			if icon, err := loadSystemIcon("moricons", int32(easterEggIndex), 128); err == nil {
 				iv.SetImage(icon)
@@ -99,6 +99,13 @@ func runAboutDialog(owner walk.Form) error {
 	}
 	detailsLbl.SetTextAlignment(walk.AlignHCenterVNear)
 	detailsLbl.SetText(l18n.Sprintf("App version: %s\nDriver version: %s\nGo version: %s\nOperating system: %s\nArchitecture: %s", version.Number, driver.Version(), strings.TrimPrefix(runtime.Version(), "go"), version.OsName(), version.Arch()))
+
+	forkLbl, err := walk.NewTextLabel(showingAboutDialog)
+	if err != nil {
+		return err
+	}
+	forkLbl.SetTextAlignment(walk.AlignHCenterVNear)
+	forkLbl.SetText(l18n.Sprintf("Unofficial build based on the official WireGuard for Windows,\nadding per-peer WebSocket/wstunnel transport to reach servers\non networks that block plain UDP. It requires the matching\nserver-side forks of wireguard-go and wireguard-tools."))
 
 	copyrightLbl, err := walk.NewTextLabel(showingAboutDialog)
 	if err != nil {
