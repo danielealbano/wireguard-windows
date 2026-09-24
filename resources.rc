@@ -14,6 +14,7 @@ LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST manifest.xml
 7 ICON ui/icon/wireguard.ico
 8 ICON ui/icon/dot.ico
+wintun.dll RCDATA wintun.dll
 wireguard.dll RCDATA wireguard.dll
 
 #define VERSIONINFO_TEMPLATE(block_id, lang_id, codepage_id, file_desc, comments) \
@@ -28,13 +29,13 @@ BEGIN \
   BEGIN \
     BLOCK block_id \
     BEGIN \
-      VALUE "CompanyName", "WireGuard LLC" \
+      VALUE "CompanyName", "Daniele Salvatore Albano" \
       VALUE "FileDescription", file_desc \
       VALUE "FileVersion", EXPAND(WIREGUARD_VERSION_STR) \
       VALUE "InternalName", "wireguard-windows" \
       VALUE "LegalCopyright", "Copyright © 2015-2026 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved." \
       VALUE "OriginalFilename", "wireguard.exe" \
-      VALUE "ProductName", "WireGuard" \
+      VALUE "ProductName", "WireGuard WS" \
       VALUE "ProductVersion", EXPAND(WIREGUARD_VERSION_STR) \
       VALUE "Comments", comments \
     END \

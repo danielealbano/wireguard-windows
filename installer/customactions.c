@@ -30,8 +30,8 @@ const IMAGE_LOAD_CONFIG_DIRECTORY _load_config_used = {
 	.GuardFlags = IMAGE_GUARD_SECURITY_COOKIE_UNUSED
 };
 
-#define MANAGER_SERVICE_NAME TEXT("WireGuardManager")
-#define TUNNEL_SERVICE_PREFIX TEXT("WireGuardTunnel$")
+#define MANAGER_SERVICE_NAME TEXT("WireGuardWSManager")
+#define TUNNEL_SERVICE_PREFIX TEXT("WireGuardWSTunnel$")
 
 enum log_level { LOG_LEVEL_INFO, LOG_LEVEL_WARN, LOG_LEVEL_ERR, LOG_LEVEL_MSIERR };
 
@@ -54,15 +54,15 @@ static void log_messagef(MSIHANDLE installer, enum log_level level, const TCHAR 
 
 	switch (level) {
 	case LOG_LEVEL_INFO:
-		template = TEXT("WireGuard: [1]");
+		template = TEXT("WireGuard WS: [1]");
 		type = INSTALLMESSAGE_INFO;
 		break;
 	case LOG_LEVEL_WARN:
-		template = TEXT("WireGuard warning: [1]");
+		template = TEXT("WireGuard WS warning: [1]");
 		type = INSTALLMESSAGE_INFO;
 		break;
 	case LOG_LEVEL_ERR:
-		template = TEXT("WireGuard error: [1]");
+		template = TEXT("WireGuard WS error: [1]");
 		type = INSTALLMESSAGE_ERROR;
 		break;
 	case LOG_LEVEL_MSIERR:
@@ -577,7 +577,7 @@ __declspec(dllexport) UINT __stdcall RemoveConfigFolder(MSIHANDLE installer)
 	if (!path[0] || !PathAppend(path, TEXT("Data")))
 		goto out;
 	remove_directory_recursive(installer, path, 10);
-	RegDeleteKey(HKEY_LOCAL_MACHINE, TEXT("Software\\WireGuard")); // Assumes no WOW.
+	RegDeleteKey(HKEY_LOCAL_MACHINE, TEXT("Software\\WireGuard WS")); // Assumes no WOW.
 out:
 	if (is_com_initialized)
 		CoUninitialize();

@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"runtime"
 	"time"
@@ -16,6 +17,10 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
+	"golang.zx2c4.com/wireguard/conn"
+	"golang.zx2c4.com/wireguard/device"
+	"golang.zx2c4.com/wireguard/ipc"
+	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/windows/conf"
 	"golang.zx2c4.com/wireguard/windows/driver"
 	"golang.zx2c4.com/wireguard/windows/elevate"
@@ -34,6 +39,11 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 
 	var watcher *interfaceWatcher
 	var adapter *driver.Adapter
+	var nativeTun *tun.NativeTun
+	var dev *device.Device
+	var uapi net.Listener
+	var routeMonitor *defaultRouteMonitor
+	var removeWSTLSFiles func()
 	var luid winipcfg.LUID
 	var config *conf.Config
 	var err error
@@ -80,16 +90,30 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 			}
 		}()
 
-		if logErr == nil && adapter != nil && config != nil {
+		if logErr == nil && (adapter != nil || nativeTun != nil) && config != nil {
 			logErr = runScriptCommand(config.Interface.PreDown, config.Name)
 		}
 		if watcher != nil {
 			watcher.Destroy()
 		}
+		if routeMonitor != nil {
+			routeMonitor.Destroy()
+		}
+		if uapi != nil {
+			uapi.Close()
+		}
+		if dev != nil {
+			dev.Close()
+		} else if nativeTun != nil {
+			nativeTun.Close()
+		}
 		if adapter != nil {
 			adapter.Close()
 		}
-		if logErr == nil && adapter != nil && config != nil {
+		if removeWSTLSFiles != nil {
+			removeWSTLSFiles()
+		}
+		if logErr == nil && (adapter != nil || nativeTun != nil) && config != nil {
 			_ = runScriptCommand(config.Interface.PostDown, config.Name)
 		}
 		stopIt <- true
@@ -116,6 +140,12 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 	config.DeduplicateNetworkEntries()
 
 	log.SetPrefix(fmt.Sprintf("[%s] ", config.Name))
+
+	removeWSTLSFiles, err = config.PrepareWSTLSFiles(conf.PathIsEncrypted(service.Path))
+	if err != nil {
+		serviceError = services.ErrorLoadConfiguration
+		return
+	}
 
 	services.PrintStarting()
 
@@ -152,33 +182,61 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 	}
 
 	log.Println("Creating network adapter")
-	for i := range 15 {
-		if i > 0 {
-			time.Sleep(time.Second)
-			log.Printf("Retrying adapter creation after failure because system just booted (T+%v): %v", windows.DurationSinceBoot(), err)
+	if config.HasWebSocketPeers() {
+		// WebSocket peers need the userspace implementation, running over Wintun.
+		var wintun tun.Device
+		for i := range 15 {
+			if i > 0 {
+				time.Sleep(time.Second)
+				log.Printf("Retrying adapter creation after failure because system just booted (T+%v): %v", windows.DurationSinceBoot(), err)
+			}
+			wintun, err = tun.CreateTUNWithRequestedGUID(config.Name, deterministicGUID(config), int(config.Interface.MTU))
+			if err == nil || !services.StartedAtBoot() {
+				break
+			}
 		}
-		adapter, err = driver.CreateAdapter(config.Name, "WireGuard", deterministicGUID(config))
-		if err == nil || !services.StartedAtBoot() {
-			break
+		if err != nil {
+			err = fmt.Errorf("Error creating adapter: %w", err)
+			serviceError = services.ErrorCreateNetworkAdapter
+			return
 		}
-	}
-	if err != nil {
-		err = fmt.Errorf("Error creating adapter: %w", err)
-		serviceError = services.ErrorCreateNetworkAdapter
-		return
-	}
-	luid = adapter.LUID()
-	driverVersion, err := driver.RunningVersion()
-	if err != nil {
-		log.Printf("Warning: unable to determine driver version: %v", err)
+		nativeTun = wintun.(*tun.NativeTun)
+		luid = winipcfg.LUID(nativeTun.LUID())
+		wintunVersion, versionErr := nativeTun.RunningVersion()
+		if versionErr != nil {
+			log.Printf("Warning: unable to determine Wintun version: %v", versionErr)
+		} else {
+			log.Printf("Using Wintun/%d.%d", (wintunVersion>>16)&0xffff, wintunVersion&0xffff)
+		}
 	} else {
-		log.Printf("Using WireGuardNT/%d.%d", (driverVersion>>16)&0xffff, driverVersion&0xffff)
-	}
-	err = adapter.SetLogging(driver.AdapterLogOn)
-	if err != nil {
-		err = fmt.Errorf("Error enabling adapter logging: %w", err)
-		serviceError = services.ErrorCreateNetworkAdapter
-		return
+		for i := range 15 {
+			if i > 0 {
+				time.Sleep(time.Second)
+				log.Printf("Retrying adapter creation after failure because system just booted (T+%v): %v", windows.DurationSinceBoot(), err)
+			}
+			adapter, err = driver.CreateAdapter(config.Name, "WireGuard", deterministicGUID(config))
+			if err == nil || !services.StartedAtBoot() {
+				break
+			}
+		}
+		if err != nil {
+			err = fmt.Errorf("Error creating adapter: %w", err)
+			serviceError = services.ErrorCreateNetworkAdapter
+			return
+		}
+		luid = adapter.LUID()
+		driverVersion, versionErr := driver.RunningVersion()
+		if versionErr != nil {
+			log.Printf("Warning: unable to determine driver version: %v", versionErr)
+		} else {
+			log.Printf("Using WireGuardNT/%d.%d", (driverVersion>>16)&0xffff, driverVersion&0xffff)
+		}
+		err = adapter.SetLogging(driver.AdapterLogOn)
+		if err != nil {
+			err = fmt.Errorf("Error enabling adapter logging: %w", err)
+			serviceError = services.ErrorCreateNetworkAdapter
+			return
+		}
 	}
 
 	err = runScriptCommand(config.Interface.PreUp, config.Name)
@@ -200,18 +258,71 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 		return
 	}
 
-	log.Println("Setting interface configuration")
-	err = adapter.SetConfiguration(config.ToDriverConfiguration())
-	if err != nil {
-		serviceError = services.ErrorDeviceSetConfig
-		return
+	if nativeTun != nil {
+		log.Println("Creating interface instance")
+		var bind conn.Bind
+		bind, err = conn.NewMultiplexBind(conn.WithWSLogger(conn.Logger{Verbosef: log.Printf, Errorf: log.Printf}))
+		if err != nil {
+			serviceError = services.ErrorDeviceSetConfig
+			return
+		}
+		dev = device.NewDevice(nativeTun, bind, &device.Logger{Verbosef: log.Printf, Errorf: log.Printf})
+
+		log.Println("Setting interface configuration")
+		uapi, err = ipc.UAPIListen(config.Name)
+		if err != nil {
+			serviceError = services.ErrorUAPIListen
+			return
+		}
+		err = dev.IpcSet(config.ToUAPI())
+		if err != nil {
+			serviceError = services.ErrorDeviceSetConfig
+			return
+		}
+
+		routeMonitor, err = newDefaultRouteMonitor(config, bind.(conn.BindSocketToInterface), dev.BindUpdate, luid)
+		if err != nil {
+			serviceError = services.ErrorBindSocketsToDefaultRoutes
+			return
+		}
+
+		log.Println("Bringing peers up")
+		err = dev.Up()
+		if err != nil {
+			serviceError = services.ErrorDeviceBringUp
+			return
+		}
+		err = routeMonitor.start()
+		if err != nil {
+			serviceError = services.ErrorBindSocketsToDefaultRoutes
+			return
+		}
+		watcher.Configure(nil, nativeTun, config, luid)
+
+		log.Println("Listening for UAPI requests")
+		go func() {
+			for {
+				uapiConn, err := uapi.Accept()
+				if err != nil {
+					return
+				}
+				go dev.IpcHandle(uapiConn)
+			}
+		}()
+	} else {
+		log.Println("Setting interface configuration")
+		err = adapter.SetConfiguration(config.ToDriverConfiguration())
+		if err != nil {
+			serviceError = services.ErrorDeviceSetConfig
+			return
+		}
+		err = adapter.SetAdapterState(driver.AdapterStateUp)
+		if err != nil {
+			serviceError = services.ErrorDeviceBringUp
+			return
+		}
+		watcher.Configure(adapter, nil, config, luid)
 	}
-	err = adapter.SetAdapterState(driver.AdapterStateUp)
-	if err != nil {
-		serviceError = services.ErrorDeviceBringUp
-		return
-	}
-	watcher.Configure(adapter, config, luid)
 
 	err = runScriptCommand(config.Interface.PostUp, config.Name)
 	if err != nil {
@@ -221,9 +332,15 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 
 	changes <- svc.Status{State: serviceState, Accepts: svc.AcceptStop | svc.AcceptShutdown}
 
+	var devWaitChan chan struct{}
+	if dev != nil {
+		devWaitChan = dev.Wait()
+	}
 	var started bool
 	for {
 		select {
+		case <-devWaitChan:
+			return
 		case c := <-r:
 			switch c.Cmd {
 			case svc.Stop, svc.Shutdown:

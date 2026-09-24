@@ -86,8 +86,23 @@ func (conf *Config) ToWgQuick() string {
 			writeField(peer.Comments, "AllowedIPs", true, strings.Join(addrStrings, ", "))
 		}
 
-		writeField(peer.Comments, "Endpoint", !peer.Endpoint.IsEmpty(), peer.Endpoint.String())
+		if peer.WSURL != "" {
+			writeField(peer.Comments, "Endpoint", true, peer.WSURL)
+		} else {
+			writeField(peer.Comments, "Endpoint", !peer.Endpoint.IsEmpty(), peer.Endpoint.String())
+		}
 		writeField(peer.Comments, "PersistentKeepalive", peer.PersistentKeepalive > 0, peer.PersistentKeepalive)
+		writeField(peer.Comments, "WSMode", peer.WSMode != WSModeNone, peer.WSMode)
+		writeField(peer.Comments, "WSTunnelTarget", peer.WSTunnelTarget != "", peer.WSTunnelTarget)
+		writeField(peer.Comments, "WSMask", peer.WSMask, peer.WSMask)
+		writeField(peer.Comments, "WSTLSCA", peer.WSTLSCA != "", peer.WSTLSCA)
+		writeField(peer.Comments, "WSTLSCert", peer.WSTLSCert != "", peer.WSTLSCert)
+		writeField(peer.Comments, "WSTLSKey", peer.WSTLSKey != "", peer.WSTLSKey)
+		writeField(peer.Comments, "WSTLSInsecure", peer.WSTLSInsecure, peer.WSTLSInsecure)
+		writeField(peer.Comments, "WSPingInterval", peer.WSPingInterval > 0, peer.WSPingInterval)
+		writeField(peer.Comments, "WSBackoffMin", peer.WSBackoffMin > 0, peer.WSBackoffMin)
+		writeField(peer.Comments, "WSBackoffMax", peer.WSBackoffMax > 0, peer.WSBackoffMax)
+		writeField(peer.Comments, "WSBearer", peer.WSBearer != "", peer.WSBearer)
 	}
 
 	for _, comment := range conf.TrailingComments {

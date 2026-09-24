@@ -19,7 +19,7 @@ A tunnel service may be installed or uninstalled using the commands:
 > wireguard /uninstalltunnelservice myconfname
 ```
 
-This creates a service called `WireGuardTunnel$myconfname`, which can be controlled using standard Windows service management utilites, such as `services.msc` or [`sc`](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-query).
+This creates a service called `WireGuardWSTunnel$myconfname`, which can be controlled using standard Windows service management utilites, such as `services.msc` or [`sc`](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-query).
 
 If the configuration filename ends in `.conf`, it is interpreted as a normal [`wg-quick(8)`](https://git.zx2c4.com/wireguard-tools/about/src/man/wg-quick.8) configuration file. If it ends in `.conf.dpapi`, it is considered to be that same configuration file, but encrypted using [`CryptProtectData(bytes, "myconfname")`](https://docs.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata).
 
@@ -50,11 +50,11 @@ The manager service may be installed or uninstalled using the commands:
 > wireguard /uninstallmanagerservice
 ```
 
-This creates a service called `WireGuardManager`, which can be controlled using standard Windows service management utilites, such as `services.msc` or [`sc`](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-query).
+This creates a service called `WireGuardWSManager`, which can be controlled using standard Windows service management utilites, such as `services.msc` or [`sc`](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-query).
 
 When executing `wireguard` with no arguments, the command first attempts to show the UI if the manager service is already running; otherwise it starts the manager service, waits for it to create a UI in the system tray, and then shows the main manager window. Therefore, `wireguard /installmanagerservice` is suitable for silent installation, whereas `wireguard` alone is suitable for interactive startup.
 
-The manager service monitors `%ProgramFiles%\WireGuard\Data\Configurations\` for the addition of new `.conf` files. Upon seeing one, it encrypts the file to a `.conf.dpapi` file, makes it unreadable to users other than Local System, confers the administrator only the ability to remove it, and then deletes the original unencrypted file. (Configurations can always be _exported_ later using the export feature of the UI.) Using this, configurations can programmatically be added to the secure store of the manager service simply by copying them into that directory.
+The manager service monitors `%ProgramFiles%\WireGuard WS\Data\Configurations\` for the addition of new `.conf` files. Upon seeing one, it encrypts the file to a `.conf.dpapi` file, makes it unreadable to users other than Local System, confers the administrator only the ability to remove it, and then deletes the original unencrypted file. (Configurations can always be _exported_ later using the export feature of the UI.) Using this, configurations can programmatically be added to the secure store of the manager service simply by copying them into that directory.
 
 The UI is started in the system tray of all builtin Administrators when the manager service is running. A limited UI may also be started in the system tray of all builtin Network Configuration Operators, if the correct registry key is set. [See `adminregistry.md` for information.](adminregistry.md)
 

@@ -62,6 +62,17 @@ type peerView struct {
 	allowedIPs          *labelTextLine
 	endpoint            *labelTextLine
 	persistentKeepalive *labelTextLine
+	wsMode              *labelTextLine
+	wsTunnelTarget      *labelTextLine
+	wsBearer            *labelTextLine
+	wsMask              *labelTextLine
+	wsTLSCA             *labelTextLine
+	wsTLSCert           *labelTextLine
+	wsTLSKey            *labelTextLine
+	wsTLSInsecure       *labelTextLine
+	wsPingInterval      *labelTextLine
+	wsBackoffMin        *labelTextLine
+	wsBackoffMax        *labelTextLine
 	latestHandshake     *labelTextLine
 	transfer            *labelTextLine
 	lines               []widgetsLine
@@ -344,6 +355,17 @@ func newPeerView(parent walk.Container) (*peerView, error) {
 		{l18n.Sprintf("Allowed IPs:"), &pv.allowedIPs},
 		{l18n.Sprintf("Endpoint:"), &pv.endpoint},
 		{l18n.Sprintf("Persistent keepalive:"), &pv.persistentKeepalive},
+		{l18n.Sprintf("WebSocket mode:"), &pv.wsMode},
+		{l18n.Sprintf("wstunnel target:"), &pv.wsTunnelTarget},
+		{l18n.Sprintf("WebSocket bearer:"), &pv.wsBearer},
+		{l18n.Sprintf("Mask WebSocket frames:"), &pv.wsMask},
+		{l18n.Sprintf("TLS CA certificate:"), &pv.wsTLSCA},
+		{l18n.Sprintf("TLS client certificate:"), &pv.wsTLSCert},
+		{l18n.Sprintf("TLS client key:"), &pv.wsTLSKey},
+		{l18n.Sprintf("Skip TLS verification:"), &pv.wsTLSInsecure},
+		{l18n.Sprintf("WebSocket ping interval (ms):"), &pv.wsPingInterval},
+		{l18n.Sprintf("Reconnect backoff min (ms):"), &pv.wsBackoffMin},
+		{l18n.Sprintf("Reconnect backoff max (ms):"), &pv.wsBackoffMax},
 		{l18n.Sprintf("Latest handshake:"), &pv.latestHandshake},
 		{l18n.Sprintf("Transfer:"), &pv.transfer},
 	}
@@ -471,7 +493,9 @@ func (pv *peerView) apply(c *conf.Peer) {
 		pv.allowedIPs.hide()
 	}
 
-	if !c.Endpoint.IsEmpty() {
+	if c.WSURL != "" {
+		pv.endpoint.show(c.WSURL)
+	} else if !c.Endpoint.IsEmpty() {
 		pv.endpoint.show(c.Endpoint.String())
 	} else {
 		pv.endpoint.hide()
@@ -482,6 +506,46 @@ func (pv *peerView) apply(c *conf.Peer) {
 	} else {
 		pv.persistentKeepalive.hide()
 	}
+
+	switch c.WSMode {
+	case conf.WSModeWebSocket:
+		pv.wsMode.show(l18n.Sprintf("WebSocket"))
+	case conf.WSModeWSTunnel:
+		pv.wsMode.show(l18n.Sprintf("wstunnel"))
+	default:
+		pv.wsMode.hide()
+	}
+	showText := func(line *labelTextLine, text string) {
+		if text != "" {
+			line.show(text)
+		} else {
+			line.hide()
+		}
+	}
+	showEnabled := func(line *labelTextLine, enabled bool) {
+		if enabled {
+			line.show(l18n.Sprintf("enabled"))
+		} else {
+			line.hide()
+		}
+	}
+	showMillis := func(line *labelTextLine, millis uint32) {
+		if millis > 0 {
+			line.show(strconv.FormatUint(uint64(millis), 10))
+		} else {
+			line.hide()
+		}
+	}
+	showText(pv.wsTunnelTarget, c.WSTunnelTarget)
+	showEnabled(pv.wsBearer, c.WSBearer != "" && IsAdmin)
+	showEnabled(pv.wsMask, c.WSMask)
+	showText(pv.wsTLSCA, c.WSTLSCA)
+	showText(pv.wsTLSCert, c.WSTLSCert)
+	showText(pv.wsTLSKey, c.WSTLSKey)
+	showEnabled(pv.wsTLSInsecure, c.WSTLSInsecure)
+	showMillis(pv.wsPingInterval, c.WSPingInterval)
+	showMillis(pv.wsBackoffMin, c.WSBackoffMin)
+	showMillis(pv.wsBackoffMax, c.WSBackoffMax)
 
 	if !c.LastHandshakeTime.IsEmpty() {
 		pv.latestHandshake.show(c.LastHandshakeTime.String())

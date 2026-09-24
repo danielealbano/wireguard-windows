@@ -36,6 +36,7 @@ type interfaceWatcher struct {
 
 	conf    *conf.Config
 	adapter *driver.Adapter
+	clamper mtuClamper
 	luid    winipcfg.LUID
 
 	setupMutex              sync.Mutex
@@ -69,7 +70,7 @@ func (iw *interfaceWatcher) setup(family winipcfg.AddressFamily) {
 
 	if iw.conf.Interface.MTU == 0 {
 		log.Printf("Monitoring MTU of default %s routes", ipversion)
-		*changeCallbacks, err = monitorMTU(family, iw.luid)
+		*changeCallbacks, err = monitorMTU(family, iw.luid, iw.clamper)
 		if err != nil {
 			iw.errors <- interfaceWatcherError{services.ErrorMonitorMTUChanges, err}
 			return
@@ -113,6 +114,9 @@ func watchInterface() (*interfaceWatcher, error) {
 		}
 		iw.setup(iface.Family)
 
+		if iw.adapter == nil {
+			return
+		}
 		if state, err := iw.adapter.AdapterState(); err == nil && state == driver.AdapterStateDown {
 			log.Println("Reinitializing adapter configuration")
 			err = iw.adapter.SetConfiguration(iw.conf.ToDriverConfiguration())
@@ -131,12 +135,12 @@ func watchInterface() (*interfaceWatcher, error) {
 	return iw, nil
 }
 
-func (iw *interfaceWatcher) Configure(adapter *driver.Adapter, conf *conf.Config, luid winipcfg.LUID) {
+func (iw *interfaceWatcher) Configure(adapter *driver.Adapter, clamper mtuClamper, conf *conf.Config, luid winipcfg.LUID) {
 	iw.setupMutex.Lock()
 	defer iw.setupMutex.Unlock()
 	iw.watchdog.Reset(time.Minute)
 
-	iw.adapter, iw.conf, iw.luid = adapter, conf, luid
+	iw.adapter, iw.clamper, iw.conf, iw.luid = adapter, clamper, conf, luid
 	for _, event := range iw.storedEvents {
 		if event.luid == luid {
 			iw.setup(event.family)

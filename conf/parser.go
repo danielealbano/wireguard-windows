@@ -8,6 +8,7 @@ package conf
 import (
 	"encoding/base64"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -70,6 +71,87 @@ func parseEndpoint(s string) (*Endpoint, error) {
 		host = host[1 : len(host)-1]
 	}
 	return &Endpoint{host, port}, nil
+}
+
+func isWSURL(s string) bool {
+	lower := strings.ToLower(s)
+	return strings.HasPrefix(lower, "ws://") || strings.HasPrefix(lower, "wss://")
+}
+
+// parseWSURL accepts ws(s)://host:port[/path[?query][#fragment]]: the scheme is
+// case-insensitive, the port is mandatory, userinfo is rejected, and a query or
+// fragment requires a path. It returns the URL's host:port as the peer endpoint.
+func parseWSURL(s string) (*Endpoint, error) {
+	invalid := &ParseError{l18n.Sprintf("Invalid WebSocket endpoint URL"), s}
+	u, err := url.Parse(s)
+	if err != nil || (u.Scheme != "ws" && u.Scheme != "wss") || u.Opaque != "" {
+		return nil, invalid
+	}
+	if u.User != nil {
+		return nil, &ParseError{l18n.Sprintf("WebSocket endpoint URL must not contain a user name or password"), s}
+	}
+	if u.Path == "" && (u.RawQuery != "" || u.ForceQuery || u.Fragment != "") {
+		return nil, &ParseError{l18n.Sprintf("WebSocket endpoint URL query or fragment requires a path"), s}
+	}
+	host, port := u.Hostname(), u.Port()
+	if host == "" || port == "" {
+		return nil, invalid
+	}
+	if strings.IndexByte(host, ':') >= 0 {
+		host = "[" + host + "]"
+	}
+	e, err := parseEndpoint(host + ":" + port)
+	if err != nil {
+		return nil, invalid
+	}
+	return e, nil
+}
+
+func parseWSMode(s string) (WSMode, error) {
+	switch mode := WSMode(strings.ToLower(s)); mode {
+	case WSModeWebSocket, WSModeWSTunnel:
+		return mode, nil
+	}
+	return WSModeNone, &ParseError{l18n.Sprintf("Invalid WebSocket mode"), s}
+}
+
+func parseWSBool(s string) (bool, error) {
+	switch s {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	}
+	return false, &ParseError{l18n.Sprintf("Value must be true or false"), s}
+}
+
+func parseWSMillis(s string) (uint32, error) {
+	m, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		return 0, &ParseError{l18n.Sprintf("Invalid millisecond count"), s}
+	}
+	return uint32(m), nil
+}
+
+// validateWebSocketPeer applies the WebSocket peer rules shared with the Android and
+// Apple clients. wsKeys lists the canonical names of the WS* keys the peer set.
+func validateWebSocketPeer(p *Peer, wsKeys []string) error {
+	isWSTunnel := p.WSMode == WSModeWSTunnel
+	switch {
+	case p.WSURL != "" && p.WSMode == WSModeNone:
+		return &ParseError{l18n.Sprintf("A WebSocket endpoint requires WSMode"), p.WSURL}
+	case p.WSURL == "" && p.WSMode != WSModeNone && !p.Endpoint.IsEmpty():
+		return &ParseError{l18n.Sprintf("WSMode requires a ws:// or wss:// endpoint"), p.Endpoint.String()}
+	case isWSTunnel && p.WSURL == "":
+		return &ParseError{l18n.Sprintf("WSMode = wstunnel requires a ws:// or wss:// endpoint"), string(p.WSMode)}
+	case isWSTunnel && p.WSTunnelTarget == "":
+		return &ParseError{l18n.Sprintf("WSMode = wstunnel requires WSTunnelTarget"), string(p.WSMode)}
+	case p.WSTunnelTarget != "" && !isWSTunnel:
+		return &ParseError{l18n.Sprintf("WSTunnelTarget requires WSMode = wstunnel"), p.WSTunnelTarget}
+	case p.WSMode == WSModeNone && len(wsKeys) != 0:
+		return &ParseError{l18n.Sprintf("WebSocket settings require WSMode"), wsKeys[0]}
+	}
+	return nil
 }
 
 func parseMTU(s string) (uint16, error) {
@@ -166,7 +248,18 @@ func FromWgQuick(s, name string) (*Config, error) {
 	conf := Config{Name: name}
 	sawPrivateKey := false
 	var peer *Peer
+	var peerWSKeys []string
 	var pendingComments []string
+	finishPeer := func() error {
+		if peer != nil {
+			if err := validateWebSocketPeer(peer, peerWSKeys); err != nil {
+				return err
+			}
+		}
+		conf.maybeAddPeer(peer)
+		peer, peerWSKeys = nil, nil
+		return nil
+	}
 	for _, line := range lines {
 		code, after, hasComment := strings.Cut(line, "#")
 		comment := ""
@@ -185,8 +278,9 @@ func FromWgQuick(s, name string) (*Config, error) {
 		key, val, hasValue := strings.Cut(stripped, "=")
 		key = strings.ToLower(strings.TrimSpace(key))
 		if key == "[interface]" && !hasValue {
-			conf.maybeAddPeer(peer)
-			peer = nil
+			if err := finishPeer(); err != nil {
+				return nil, err
+			}
 			parserState = inInterfaceSection
 			h := &conf.Interface.Comments.Header
 			h.Before = append(h.Before, pendingComments...)
@@ -201,7 +295,9 @@ func FromWgQuick(s, name string) (*Config, error) {
 			continue
 		}
 		if key == "[peer]" && !hasValue {
-			conf.maybeAddPeer(peer)
+			if err := finishPeer(); err != nil {
+				return nil, err
+			}
 			peer = &Peer{}
 			peer.Comments.Header = Comments{Before: pendingComments, Suffix: comment}
 			pendingComments = nil
@@ -339,17 +435,87 @@ func FromWgQuick(s, name string) (*Config, error) {
 				}
 				peer.PersistentKeepalive = p
 			case "endpoint":
-				e, err := parseEndpoint(val)
+				var e *Endpoint
+				var err error
+				wsURL := ""
+				if isWSURL(val) {
+					e, err = parseWSURL(val)
+					wsURL = val
+				} else {
+					e, err = parseEndpoint(val)
+				}
 				if err != nil {
 					return nil, err
 				}
 				peer.Endpoint = *e
+				peer.WSURL = wsURL
+			case "wsmode":
+				m, err := parseWSMode(val)
+				if err != nil {
+					return nil, err
+				}
+				peer.WSMode = m
+			case "wstunneltarget":
+				if _, err := parseEndpoint(val); err != nil {
+					return nil, &ParseError{l18n.Sprintf("Invalid WSTunnelTarget"), val}
+				}
+				peer.WSTunnelTarget = val
+				peerWSKeys = append(peerWSKeys, "WSTunnelTarget")
+			case "wsbearer":
+				peer.WSBearer = val
+				peerWSKeys = append(peerWSKeys, "WSBearer")
+			case "wsmask":
+				b, err := parseWSBool(val)
+				if err != nil {
+					return nil, err
+				}
+				peer.WSMask = b
+				peerWSKeys = append(peerWSKeys, "WSMask")
+			case "wstlsca":
+				peer.WSTLSCA = val
+				peerWSKeys = append(peerWSKeys, "WSTLSCA")
+			case "wstlscert":
+				peer.WSTLSCert = val
+				peerWSKeys = append(peerWSKeys, "WSTLSCert")
+			case "wstlskey":
+				peer.WSTLSKey = val
+				peerWSKeys = append(peerWSKeys, "WSTLSKey")
+			case "wstlsinsecure":
+				b, err := parseWSBool(val)
+				if err != nil {
+					return nil, err
+				}
+				peer.WSTLSInsecure = b
+				peerWSKeys = append(peerWSKeys, "WSTLSInsecure")
+			case "wspinginterval":
+				m, err := parseWSMillis(val)
+				if err != nil {
+					return nil, err
+				}
+				peer.WSPingInterval = m
+				peerWSKeys = append(peerWSKeys, "WSPingInterval")
+			case "wsbackoffmin":
+				m, err := parseWSMillis(val)
+				if err != nil {
+					return nil, err
+				}
+				peer.WSBackoffMin = m
+				peerWSKeys = append(peerWSKeys, "WSBackoffMin")
+			case "wsbackoffmax":
+				m, err := parseWSMillis(val)
+				if err != nil {
+					return nil, err
+				}
+				peer.WSBackoffMax = m
+				peerWSKeys = append(peerWSKeys, "WSBackoffMax")
 			default:
 				return nil, &ParseError{l18n.Sprintf("Invalid key for [Peer] section"), key}
 			}
 		}
 	}
-	conf.maybeAddPeer(peer)
+	if err := finishPeer(); err != nil {
+		return nil, err
+	}
 
 	pruneComments := func(run []string, dropLeading, dropTrailing bool) []string {
 		var out []string

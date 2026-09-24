@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -286,14 +287,21 @@ func (tp *TunnelsPage) importFiles(paths []string) {
 			})
 		}
 		type unparsedConfig struct {
-			Name   string
-			Config string
+			Name          string
+			Config        string
+			ReadWSTLSFile func(ref string) ([]byte, error)
 		}
 
 		var (
 			unparsedConfigs []unparsedConfig
 			lastErr         error
+			zipReaders      []*zip.ReadCloser
 		)
+		defer func() {
+			for _, r := range zipReaders {
+				r.Close()
+			}
+		}()
 
 		for _, path := range paths {
 			switch strings.ToLower(filepath.Ext(path)) {
@@ -303,13 +311,18 @@ func (tp *TunnelsPage) importFiles(paths []string) {
 					lastErr = err
 					continue
 				}
-				unparsedConfigs = append(unparsedConfigs, unparsedConfig{Name: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), Config: string(textConfig)})
+				unparsedConfigs = append(unparsedConfigs, unparsedConfig{Name: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), Config: string(textConfig), ReadWSTLSFile: conf.WSTLSFileReader(nil, filepath.Dir(path))})
 			case ".zip":
 				// 1 .conf + 1 error .zip edge case?
 				r, err := zip.OpenReader(path)
 				if err != nil {
 					lastErr = err
 					continue
+				}
+				zipReaders = append(zipReaders, r)
+				zipFiles := make(map[string]*zip.File, len(r.File))
+				for _, f := range r.File {
+					zipFiles[f.Name] = f
 				}
 
 				for _, f := range r.File {
@@ -328,10 +341,8 @@ func (tp *TunnelsPage) importFiles(paths []string) {
 						lastErr = err
 						continue
 					}
-					unparsedConfigs = append(unparsedConfigs, unparsedConfig{Name: strings.TrimSuffix(filepath.Base(f.Name), filepath.Ext(f.Name)), Config: string(textConfig)})
+					unparsedConfigs = append(unparsedConfigs, unparsedConfig{Name: strings.TrimSuffix(filepath.Base(f.Name), filepath.Ext(f.Name)), Config: string(textConfig), ReadWSTLSFile: zipWSTLSFileReader(zipFiles, f.Name)})
 				}
-
-				r.Close()
 			}
 		}
 
@@ -359,6 +370,7 @@ func (tp *TunnelsPage) importFiles(paths []string) {
 		}
 
 		configCount := 0
+		var copiedWSTLSFiles []string
 		tp.listView.SetSuspendTunnelsUpdate(true)
 		for _, unparsedConfig := range unparsedConfigs {
 			if existingLowerTunnels[strings.ToLower(unparsedConfig.Name)] {
@@ -370,10 +382,18 @@ func (tp *TunnelsPage) importFiles(paths []string) {
 				lastErr = err
 				continue
 			}
+			stored, err := config.CollectWSTLSFiles(unparsedConfig.ReadWSTLSFile)
+			if err != nil {
+				lastErr = err
+				continue
+			}
 			_, err = manager.IPCClientNewTunnel(config)
 			if err != nil {
 				lastErr = err
 				continue
+			}
+			for ref, name := range stored {
+				copiedWSTLSFiles = append(copiedWSTLSFiles, l18n.Sprintf("%s: %s → %s", unparsedConfig.Name, ref, name))
 			}
 			existingLowerTunnels[strings.ToLower(unparsedConfig.Name)] = true
 			configCount++
@@ -391,7 +411,49 @@ func (tp *TunnelsPage) importFiles(paths []string) {
 		case m != n:
 			syncedMsgBox(l18n.Sprintf("Imported tunnels"), l18n.Sprintf("Imported %d of %d tunnels", m, n), walk.MsgBoxIconWarning)
 		}
+		if len(copiedWSTLSFiles) > 0 {
+			sort.Strings(copiedWSTLSFiles)
+			syncedMsgBox(l18n.Sprintf("TLS files copied"), l18n.Sprintf("These TLS files are stored, encrypted, with the tunnel, and the configuration now refers to them by name:\n\n%s", strings.Join(copiedWSTLSFiles, "\n")), walk.MsgBoxIconInformation)
+		}
 	}()
+}
+
+// zipWSTLSFileReader resolves the TLS file references of the configuration at confPath
+// in an archive: a relative reference is looked up in the folder named after the
+// configuration, as written by exportTunnels, then next to the configuration.
+func zipWSTLSFileReader(files map[string]*zip.File, confPath string) func(ref string) ([]byte, error) {
+	dir := path.Dir(confPath)
+	name := strings.TrimSuffix(path.Base(confPath), path.Ext(confPath))
+	readFromDisk := conf.WSTLSFileReader(nil, "")
+	return func(ref string) ([]byte, error) {
+		if filepath.IsAbs(ref) {
+			return readFromDisk(ref)
+		}
+		rel := filepath.ToSlash(ref)
+		for _, candidate := range []string{path.Join(dir, name, rel), path.Join(dir, rel)} {
+			f, ok := files[candidate]
+			if !ok {
+				continue
+			}
+			if f.UncompressedSize64 > conf.MaxWSTLSFileSize {
+				return nil, errors.New(l18n.Sprintf("the file is too large"))
+			}
+			rc, err := f.Open()
+			if err != nil {
+				return nil, err
+			}
+			defer rc.Close()
+			data, err := io.ReadAll(io.LimitReader(rc, conf.MaxWSTLSFileSize+1))
+			if err != nil {
+				return nil, err
+			}
+			if len(data) > conf.MaxWSTLSFileSize {
+				return nil, errors.New(l18n.Sprintf("the file is too large"))
+			}
+			return data, nil
+		}
+		return nil, errors.New(l18n.Sprintf("the file is not in the archive"))
+	}
 }
 
 func (tp *TunnelsPage) exportTunnels(filePath string) {
@@ -411,6 +473,20 @@ func (tp *TunnelsPage) exportTunnels(filePath string) {
 
 			if _, err := w.Write(([]byte)(cfg.ToWgQuick())); err != nil {
 				return fmt.Errorf("onExportTunnels: cfg.ToWgQuick failed: %w", err)
+			}
+
+			for _, name := range cfg.WSTLSStoredFileNames() {
+				data, ok := cfg.WSTLSFiles[name]
+				if !ok {
+					return fmt.Errorf("onExportTunnels: stored TLS file %q of %s is missing", name, tunnel.Name)
+				}
+				w, err := writer.Create(tunnel.Name + "/" + name)
+				if err != nil {
+					return fmt.Errorf("onExportTunnels: writer.Create failed: %w", err)
+				}
+				if _, err := w.Write(data); err != nil {
+					return fmt.Errorf("onExportTunnels: writing %s failed: %w", name, err)
+				}
 			}
 		}
 

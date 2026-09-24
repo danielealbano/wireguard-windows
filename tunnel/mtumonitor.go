@@ -49,7 +49,11 @@ func findDefaultLUID(family winipcfg.AddressFamily, ourLUID winipcfg.LUID, lastL
 	return nil
 }
 
-func monitorMTU(family winipcfg.AddressFamily, ourLUID winipcfg.LUID) ([]winipcfg.ChangeCallback, error) {
+type mtuClamper interface {
+	ForceMTU(mtu int)
+}
+
+func monitorMTU(family winipcfg.AddressFamily, ourLUID winipcfg.LUID, clamper mtuClamper) ([]winipcfg.ChangeCallback, error) {
 	var minMTU int
 	if family == windows.AF_INET {
 		minMTU = 576
@@ -86,6 +90,9 @@ func monitorMTU(family winipcfg.AddressFamily, ourLUID winipcfg.LUID) ([]winipcf
 			err = iface.Set()
 			if err != nil {
 				return err
+			}
+			if clamper != nil {
+				clamper.ForceMTU(int(iface.NLMTU))
 			}
 			lastMTU = mtu
 		}

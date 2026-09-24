@@ -43,6 +43,8 @@ func (s *ManagerService) StoredConfig(tunnelName string) (*conf.Config, error) {
 	}
 	if s.elevatedToken == 0 {
 		conf.Redact()
+	} else if err := conf.LoadWSTLSFiles(); err != nil {
+		log.Printf("[%s] %v", tunnelName, err)
 	}
 	return conf, nil
 }
@@ -51,6 +53,16 @@ func (s *ManagerService) RuntimeConfig(tunnelName string) (*conf.Config, error) 
 	storedConfig, err := conf.LoadFromName(tunnelName)
 	if err != nil {
 		return nil, err
+	}
+	if storedConfig.HasWebSocketPeers() {
+		conf, err := uapiRuntimeConfig(storedConfig)
+		if err != nil {
+			return nil, err
+		}
+		if s.elevatedToken == 0 {
+			conf.Redact()
+		}
+		return conf, nil
 	}
 	driverAdapter, err := findDriverAdapter(tunnelName)
 	if err != nil {
@@ -203,7 +215,15 @@ func (s *ManagerService) Create(tunnelConfig *conf.Config) (*Tunnel, error) {
 	if s.elevatedToken == 0 {
 		return nil, windows.ERROR_ACCESS_DENIED
 	}
-	err := tunnelConfig.Save(true)
+	err := tunnelConfig.ValidateWSTLSFiles()
+	if err != nil {
+		return nil, err
+	}
+	err = conf.SaveWSTLSFiles(tunnelConfig.Name, tunnelConfig.WSTLSFiles)
+	if err != nil {
+		return nil, err
+	}
+	err = tunnelConfig.Save(true)
 	if err != nil {
 		return nil, err
 	}

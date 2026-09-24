@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: build, vet, test, package (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Build (build.bat)
+        shell: cmd
+        run: build.bat
+
+      - name: Use the toolchain pinned by build.bat
+        shell: pwsh
+        run: |
+          "$env:GITHUB_WORKSPACE\.deps\go\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          "$env:GITHUB_WORKSPACE\.deps\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          "GOROOT=$env:GITHUB_WORKSPACE\.deps\go" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "GOPATH=$env:GITHUB_WORKSPACE\.deps\gopath" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - name: gofmt
+        shell: bash
+        run: |
+          unformatted=$(git ls-files -z '*.go' | xargs -0 gofmt -l)
+          if [ -n "$unformatted" ]; then echo "$unformatted"; exit 1; fi
+
+      - name: go mod tidy
+        shell: bash
+        run: go mod tidy && git diff --exit-code go.mod go.sum
+
+      # Upstream's existing findings are not gates (see .claude/rules/project.md), so only
+      # findings on lines the fork added or changed since upstream 1.1.1 fail the build.
+      # wintun/ is a copy of the upstream wintun-go bindings.
+      - name: go vet (lines changed by the fork)
+        shell: bash
+        run: |
+          base=6ece77bc487c8aa697e3c092197621c4f3e5ccb8
+          git diff -U0 "$base" HEAD -- '*.go' ':!wintun' | awk '
+            /^\+\+\+ b\// { file = substr($0, 7); next }
+            /^@@/ { split($3, a, ","); start = substr(a[1], 2); count = (a[2] == "" ? 1 : a[2]);
+                    for (i = 0; i < count; i++) print file ":" start + i }' > "$RUNNER_TEMP/changed-lines.txt"
+          pkgs=$(git diff --name-only "$base" HEAD -- '*.go' ':!wintun' | xargs -n1 dirname | sort -u | sed 's#^#./#')
+          status=0
+          for arch in amd64 arm64; do
+            GOARCH=$arch go vet $pkgs 2> "$RUNNER_TEMP/vet-$arch.txt" || true
+            tr '\\' '/' < "$RUNNER_TEMP/vet-$arch.txt" | awk -F: -v arch=$arch '
+              NR == FNR { changed[$0]; next }
+              /\.go:[0-9]+:/ && (($1 ":" $2) in changed) { print "new go vet finding (" arch "): " $0; bad = 1 }
+              END { exit bad }' "$RUNNER_TEMP/changed-lines.txt" - || status=1
+          done
+          exit $status
+
+      - name: Tests (race)
+        shell: bash
+        env:
+          CGO_ENABLED: "1"
+          CC: x86_64-w64-mingw32-gcc
+        run: go test -race -count=1 -tags integration ./conf ./ui/syntax ./tunnel
+
+      - name: govulncheck
+        shell: bash
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+      - name: Build the MSIs (installer\build.bat)
+        shell: cmd
+        run: installer\build.bat
+
+      - name: Package (x86)
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: wireguard-ws-x86
+          path: |
+            x86/wireguard.exe
+            x86/wg.exe
+          if-no-files-found: error
+
+      - name: Package (amd64)
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: wireguard-ws-amd64
+          path: |
+            amd64/wireguard.exe
+            amd64/wg.exe
+          if-no-files-found: error
+
+      - name: Package (arm64)
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: wireguard-ws-arm64
+          path: |
+            arm64/wireguard.exe
+            arm64/wg.exe
+          if-no-files-found: error
+
+      - name: Package (MSIs)
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: wireguard-ws-msi
+          path: installer/dist/wireguard-ws-*.msi
+          if-no-files-found: error
