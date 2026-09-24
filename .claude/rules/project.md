@@ -108,15 +108,13 @@ Versions are authoritative in `go.mod`, `Makefile`, `build.bat`, `installer/buil
   for a non-Windows host; "host-testable" means runnable on the Windows test machine (see Testing).
 - **Testcontainers do NOT apply**: there is no external-service infrastructure; end-to-end behaviour is
   validated on a Windows VM against the user's live WireGuard/wstunnel server (see Testing).
-- **Static analysis (decided 2026-09-24)**: the static-analysis gates are **`gofmt`** (no output) and
-  **`go vet`** with `GOOS=windows` for **each** of `GOARCH=amd64`, `386`, `arm64`, with ZERO findings.
-  **golangci-lint is NOT used** in this project (no committed config) — the `go.md` golangci-lint
-  requirement does NOT apply. Baseline on unmodified upstream (identical on all three architectures):
-  **113** `go vet` findings (50 unkeyed composite literals — 48 `walk.*` in `ui/`, 1 `win.CHARRANGE` in
-  `ui/syntax/`, 1 `windows.GUID` in `elevate/`; 51 `%w` in `t.Errorf` in
-  `tunnel/winipcfg/winipcfg_test.go`; 10 possible `unsafe.Pointer` misuses in `driver/`, `driver/memmod/`,
-  `conf/`, `manager/`, `ringlogger/`, `ui/syntax/`; 2 `t.Fatal` from a goroutine in
-  `ringlogger/cli_test.go`), fixed by the dedicated cleanup plan (the first plan).
+- **Upstream code stays as is (decided 2026-09-24).** This fork makes ONLY the changes the WireGuard WS
+  flow strictly needs. The gates (`gofmt`, `go vet`, tests) apply to the code and tests this fork ADDS or
+  CHANGES; upstream's pre-existing `go vet` findings (113 at 1.1.1) and its broken, manual or
+  environment-dependent tests (`ringlogger`, `updater`, `updater/winhttp`, `version`, `tunnel/winipcfg`)
+  are left untouched and are NOT gates. You MUST NOT fix, refactor or "clean up" upstream code that the
+  change does not require. **golangci-lint is NOT used** (no committed config), so the `go.md`
+  golangci-lint requirement does NOT apply. 32-bit (x86) is built by `build.bat` but not checked.
 
 ---
 
@@ -168,19 +166,20 @@ build (and the one CI will use); the `Makefile` is the Linux development build.
 | Build (Linux dev, amd64) | `make amd64/wireguard.exe` (also `x86/wireguard.exe`; needs `mingw-w64`, `libarchive-tools`, ImageMagick) |
 | Deploy to the test VM | `make deploy DEPLOYMENT_HOST=wgws-win11` (copies `amd64/wireguard.exe` to the VM Desktop) |
 | Format | `make fmt` (Linux) / `gofmt -l .` must print nothing |
-| Vet | `GOOS=windows GOARCH=<amd64\|386\|arm64> go vet ./...` — ZERO findings on all three |
+| Vet | `GOOS=windows GOARCH=<amd64\|arm64> go vet <changed packages>` — no NEW findings in changed code |
 | Regenerate catalogs/bindings | `make generate` (Linux) / `set GoGenerate=yes` + `build.bat` (Windows) |
 | Tidy | `go mod tidy` (MUST produce NO `go.mod`/`go.sum` diff) |
 | Vulncheck | `govulncheck ./...` (with `GOOS=windows`) |
-| Tests | on Windows: `go test ./...` (see Testing for elevation/network constraints) |
+| Tests | on Windows: `go test <changed packages>` — the fork's new/changed tests MUST pass |
 | Installer (Windows only) | `installer\build.bat` |
 | Mermaid check | validate all Mermaid blocks under `docs/` per `development_pipeline.md` §9 |
 
-**Quality gates** (per `development_pipeline.md` §2, `go.md`, `windows.md`, `ui.md`): a clean
-canonical build for all architectures, `gofmt` clean, `go vet` with ZERO findings on amd64/386/arm64
-(see Documented exceptions), `go mod tidy` with NO diff, `govulncheck` clean, the tests passing ON
-Windows, and Mermaid validation (when charts were touched). For plan flows, the **end-to-end run on the
-Windows VM** (see Testing) is an ADDITIONAL mandatory final gate once the e2e script exists (ROADMAP).
+**Quality gates** (per `development_pipeline.md` §2, `go.md`, `windows.md`, `ui.md`, scoped by the
+"Upstream code stays as is" exception): a clean canonical build, `gofmt` clean and no NEW `go vet`
+findings in the code this fork changes, `go mod tidy` with NO diff, `govulncheck` clean, the fork's
+new/changed tests passing ON Windows, and Mermaid validation (when charts were touched). The
+**end-to-end run on the Windows VM** (see Testing) is an additional gate once the e2e script exists
+(ROADMAP).
 
 ---
 

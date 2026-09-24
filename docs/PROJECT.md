@@ -121,9 +121,9 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
   `tunnel/winipcfg/`, `updater/`, `updater/winhttp/`, `version/`. Some need elevation, a live network,
   or the official signature. No package compiles its tests on a non-Windows host. There are no tests
   for `tunnel/`, `manager/`, `driver/`, or `ui/`.
-- **Static analysis**: gates are `gofmt` and `go vet` (`GOOS=windows`, amd64/386/arm64) with zero
-  findings; golangci-lint is not used. Unmodified upstream (2026-09-24) has 113 `go vet` findings,
-  identical on all architectures; a dedicated cleanup plan fixes them.
+- **Scope of the gates**: the fork changes only what WireGuard WS strictly needs. `gofmt`, `go vet` and
+  tests gate the code and tests the fork adds or changes; upstream's existing `go vet` findings (113 at
+  1.1.1) and its broken or environment-dependent tests are left as they are. golangci-lint is not used.
 - **End-to-end**: manual today (the spike); an SSH-driven e2e script for the VM is on the roadmap.
 
 ## Roadmap — WireGuard WS
