@@ -50,7 +50,9 @@ jobs:
             /^\+\+\+ b\// { file = substr($0, 7); next }
             /^@@/ { split($3, a, ","); start = substr(a[1], 2); count = (a[2] == "" ? 1 : a[2]);
                     for (i = 0; i < count; i++) print file ":" start + i }' > "$RUNNER_TEMP/changed-lines.txt"
-          pkgs=$(git diff --name-only "$base" HEAD -- '*.go' ':!wintun' | xargs -n1 dirname | sort -u | sed 's#^#./#')
+          pkgs=$(git diff --name-only --diff-filter=d "$base" HEAD -- '*.go' ':!wintun' | xargs -n1 dirname | sort -u | sed 's#^#./#')
+          # go vet's errors go to the filtered file below, so fail here if a package cannot be loaded.
+          go list $pkgs > /dev/null
           status=0
           for arch in amd64 arm64; do
             GOARCH=$arch go vet $pkgs 2> "$RUNNER_TEMP/vet-$arch.txt" || true
@@ -70,7 +72,7 @@ jobs:
 
       - name: govulncheck
         shell: bash
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
       - name: Build the MSIs (installer\build.bat)
         shell: cmd
