@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"golang.org/x/sys/windows"
+	"golang.zx2c4.com/wintun"
 
 	"golang.zx2c4.com/wireguard/windows/conf"
 	"golang.zx2c4.com/wireguard/windows/driver"
@@ -325,6 +326,9 @@ func main() {
 			usage()
 		}
 		err := driver.Uninstall()
+		if wintunErr := wintun.Uninstall(); err == nil {
+			err = wintunErr
+		}
 		if err != nil {
 			fatal(err)
 		}
