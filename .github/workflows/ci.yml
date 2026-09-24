@@ -72,6 +72,10 @@ jobs:
         shell: bash
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
+      - name: Build the MSIs (installer\build.bat)
+        shell: cmd
+        run: installer\build.bat
+
       - name: Package (x86)
         uses: actions/upload-artifact@v7.0.1
         with:
@@ -97,4 +101,11 @@ jobs:
           path: |
             arm64/wireguard.exe
             arm64/wg.exe
+          if-no-files-found: error
+
+      - name: Package (MSIs)
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: wireguard-ws-msi
+          path: installer/dist/wireguard-ws-*.msi
           if-no-files-found: error

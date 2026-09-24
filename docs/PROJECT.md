@@ -111,9 +111,11 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
   the wireguard-tools fork, Wintun and WireGuardNT, renders icons, compiles resources, builds
   `wireguard.exe` for x86/amd64/arm64 and `wg.exe`, and signs them when a `sign.bat` provides a signing
   identity. `installer\build.bat` builds the MSIs with WiX.
-- **Distribution**: CI publishes each architecture's `wireguard.exe` and `wg.exe` as a zip artifact;
-  running `wireguard.exe` installs the manager service. The MSI still carries upstream's identity and is
-  the last step of the roadmap.
+- **Distribution**: CI publishes each architecture's `wireguard.exe` and `wg.exe` as a zip artifact
+  (running `wireguard.exe` installs the manager service) and the `wireguard-ws-<arch>-<version>.msi`
+  installers. The MSI is the product "WireGuard WS" (publisher Daniele Salvatore Albano, its own
+  upgrade and component codes, installed in `%ProgramFiles%\WireGuard WS`), so it installs, upgrades
+  and uninstalls next to the official client without touching it.
 - **Linux (development)**: `make` cross-builds `wireguard.exe` (x86/amd64; arm64 needs an aarch64
   mingw not packaged by Ubuntu) and `make deploy` copies it to a Windows host over SSH. Ubuntu's GNU
   `windres` cannot compile `resources.rc` (it rejects `LANG_PERSIAN`, in upstream too), so the Windows
@@ -144,7 +146,8 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
   `build.bat`): `go test -race -tags integration ./conf ./ui/syntax ./tunnel`.
 - **CI** (`.github/workflows/ci.yml`, `windows-latest`): `build.bat`, `gofmt`, `go mod tidy`, `go vet`
   on amd64 and arm64 failing only on lines the fork added or changed since `6ece77bc` (the vendored
-  `wintun/` excluded), the race tests above, `govulncheck`, and the per-architecture artifacts.
+  `wintun/` excluded), the race tests above, `govulncheck`, `installer\build.bat`, and the
+  per-architecture and MSI artifacts.
 - **Scope of the gates**: the fork changes only what WireGuard WS strictly needs. `gofmt`, `go vet` and
   tests gate the code and tests the fork adds or changes; upstream's existing `go vet` findings (113 at
   1.1.1) and its broken or environment-dependent tests are left as they are. golangci-lint is not used.
@@ -159,7 +162,8 @@ and `wireguard-apple` forks, consuming the `danielealbano/wireguard-go` fork (We
 UDP/WebSocket multiplex bind), with a config surface byte-compatible with the `wireguard-tools` fork.
 
 **Status:** implemented as described in [`ARCHITECTURE.md`](ARCHITECTURE.md) and validated on
-`wgws-win11`, except the MSI (decision 8), which still carries upstream's identity.
+`wgws-win11`, including the MSI installed next to the official client. Code signing is still to do
+(decision 9).
 
 ### Agreed decisions
 
@@ -171,7 +175,7 @@ UDP/WebSocket multiplex bind), with a config surface byte-compatible with the `w
 | 4 | Where Android and Apple differ | The **wireguard-tools fork** is the tie-breaker: user/password in the URL **rejected** (the transport never sends it — authentication is `WSBearer`: `Bearer` for websocket, `Basic` base64 `user:pass` for wstunnel); query without a path rejected; a repeated key keeps the last value; timings are uint32 milliseconds (0 = default); `transport=` is emitted for every peer in the UAPI. |
 | 5 | TLS files, UI-managed tunnels | On import, zip import (certificates inside the zip are resolved), and editor save, referenced certificate/key files are read by the UI, sent to the manager, and stored **DPAPI-encrypted** in the protected data directory with the paths rewritten to bare file names; the user is told the files were copied. The tunnel service decrypts them into a SYSTEM-only location at start and removes them at stop. They are deleted with the tunnel, carried over on rename, and included in zip export. |
 | 6 | TLS files, on-disk tunnels | For `/installtunnelservice C:\path\x.conf`, certificate paths are used **in place** (like wg-quick); **UNC/network and relative paths are rejected**. |
-| 7 | Identity | Branded **"WireGuard WS"** and installable **alongside** the official client: services `WireGuardWSManager` and `WireGuardWSTunnel$<name>`, data directory `%ProgramFiles%\WireGuard WS\Data`, registry key `HKLM\Software\WireGuard WS`, window title and management window class; MSI codes still to do. The updater stays inactive. |
+| 7 | Identity | Branded **"WireGuard WS"** and installable **alongside** the official client: services `WireGuardWSManager` and `WireGuardWSTunnel$<name>`, data directory `%ProgramFiles%\WireGuard WS\Data`, registry key `HKLM\Software\WireGuard WS`, window title and management window class; MSI product "WireGuard WS" with its own codes, folder and publisher (Daniele Salvatore Albano), also in the executable's version information. The updater stays inactive. |
 | 8 | Packaging | `wintun.dll` embedded like `wireguard.dll`; `wg.exe` built from the wireguard-tools fork; zip distribution first, the WiX MSI as the very last step. `tunnel.dll` is out of scope. |
 | 9 | CI / signing | GitHub Actions on `windows-latest` for the entire flow; code signing added later. |
 | 10 | Prerequisite | wireguard-go fork **v1.3.1** (released): asynchronous WebSocket dial, so a dial in flight no longer blocks `BindUpdate`/`Close` for up to 15 s (found by spike T5; affects every platform using the fork). |

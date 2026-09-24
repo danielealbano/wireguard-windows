@@ -16,7 +16,7 @@ with WiX.
 > `wireguard-android` / `wireguard-apple` forks — is implemented: WebSocket configs run on the sibling
 > **`danielealbano/wireguard-go` fork v1.3.1** in userspace over **Wintun**, pure-UDP configs stay on
 > WireGuardNT. Decisions, status and what remains (the MSI identity) are in `docs/PROJECT.md` →
-> WireGuard WS. The canonical docs MUST be kept current as decisions land.
+> WireGuard WS (code signing is the remaining item). The canonical docs MUST be kept current as decisions land.
 
 ## MANDATORY: Read These First
 
@@ -53,7 +53,7 @@ Versions are authoritative in `go.mod`, `Makefile`, `build.bat`, `installer/buil
 | Stdlib overlay | `.overlay/` (upstream) | **Not applied** by this fork's builds: its crypto stubs cannot build `crypto/tls`, which `wss://` needs. |
 | Localization | `golang.org/x/text/message` catalogs | `locales/*/messages.gotext.json` (Crowdin-managed) → generated `zgotext.go` via `go generate`; `l18n.Sprintf`. |
 | CLI tool | `wg.exe` from the **`danielealbano/wireguard-tools` fork** | `build.bat` builds it from the fork pinned at `68b49a93` (GitHub archive, SHA-256 verified) with llvm-mingw. |
-| Installer | **WiX 3.14.1** MSI (`installer/`) | Windows-only build; C custom actions (`customactions.c`); per-arch `UpgradeCode`s; `installer/fetcher` bootstrapper. Still upstream's identity (ROADMAP). |
+| Installer | **WiX 3.14.1** MSI (`installer/`) | Windows-only build; C custom actions (`customactions.c`); per-arch `UpgradeCode`s; `installer/fetcher` bootstrapper (upstream's, not built). Product "WireGuard WS", publisher Daniele Salvatore Albano, own `UpgradeCode`s; output `installer\dist\wireguard-ws-<arch>-<version>.msi`. |
 | Build | `build.bat` (Windows, canonical: x86/amd64/arm64 + `wg.exe`) / `Makefile` (Linux cross-build of `wireguard.exe`) | llvm-mingw 20260311 on Windows; Ubuntu `mingw-w64` on Linux (no aarch64 → arm64 not buildable on the Linux host). |
 | Tests / CI | Windows-only Go tests; **GitHub Actions on `windows-latest`** (`.github/workflows/ci.yml`) | See Testing. |
 
@@ -77,7 +77,7 @@ Versions are authoritative in `go.mod`, `Makefile`, `build.bat`, `installer/buil
   Key material, bearers and TLS keys MUST NEVER be logged, shown to operator sessions, or written
   elsewhere.
 - **IDENTITY**: WireGuard WS installs alongside the official client — its service names, data directory,
-  `HKLM\Software\WireGuard WS` key and window class MUST stay distinct from upstream's.
+  `HKLM\Software\WireGuard WS` key, window class and MSI codes MUST stay distinct from upstream's.
 - **THE CONFIG MODEL IS A CONTRACT**: `conf` parses/serializes wg-quick text (`FromWgQuick`/`ToWgQuick`,
   unknown keys REJECTED, WebSocket keys validated exactly like the Android/Apple forks), converts to the
   WireGuardNT binary IOCTL layout (`ToDriverConfiguration`/`FromDriverConfiguration`), which MUST match
@@ -215,8 +215,8 @@ the tunnel, manager or UI flows are also validated end to end on the Windows VM 
   outside the repo. The live test configs are provided by the user outside the repo and MUST NEVER be
   committed.
 - **CI**: GitHub Actions on `windows-latest` (`.github/workflows/ci.yml`): `build.bat`, `gofmt`,
-  `go mod tidy`, `go vet` on changed lines, the race tests, `govulncheck`, per-architecture artifacts;
-  signing later.
+  `go mod tidy`, `go vet` on changed lines, the race tests, `govulncheck`, `installer\build.bat`,
+  per-architecture and MSI artifacts; signing later.
 
 ---
 
