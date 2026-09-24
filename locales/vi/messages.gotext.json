@@ -641,8 +641,18 @@
             "translation": ""
         },
         {
+            "id": "Stored TLS file names must differ in more than letter case",
+            "message": "Stored TLS file names must differ in more than letter case",
+            "translation": ""
+        },
+        {
             "id": "Unexpected stored TLS file",
             "message": "Unexpected stored TLS file",
+            "translation": ""
+        },
+        {
+            "id": "the path must be on a local drive",
+            "message": "the path must be on a local drive",
             "translation": ""
         },
         {
@@ -653,6 +663,11 @@
         {
             "id": "the file is too large",
             "message": "the file is too large",
+            "translation": ""
+        },
+        {
+            "id": "the file is not in the archive",
+            "message": "the file is not in the archive",
             "translation": ""
         },
         {
@@ -1742,11 +1757,6 @@
                     "expr": "n"
                 }
             ]
-        },
-        {
-            "id": "the file is not in the archive",
-            "message": "the file is not in the archive",
-            "translation": ""
         },
         {
             "id": "Unable to create tunnel",
