@@ -19,7 +19,7 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
 
 | Concern | Choice |
 |---|---|
-| Language | Go (pure Go — no cgo in the main module); module `golang.zx2c4.com/wireguard/windows`, `go 1.26.0`; build scripts pin Go 1.27.1 |
+| Language | Go (pure Go — no cgo in the main module); module `golang.zx2c4.com/wireguard/windows`, `go 1.26.5`; build scripts pin Go 1.27.1 |
 | Kernel driver | WireGuardNT 1.1 (`wireguard.dll`, embedded as `RCDATA`, loaded in-memory by `driver/memmod` with build tag `load_wgnt_from_rsrc`) for UDP-only tunnels |
 | Userspace backend | `danielealbano/wireguard-go` fork **v1.3.1** (`replace golang.zx2c4.com/wireguard` in `go.mod`) over **Wintun 0.14.1** (`wintun.dll`, embedded as `RCDATA`, loaded in-memory with build tag `load_wintun_from_rsrc` through the `wintun/` copy of the bindings) for tunnels with a WebSocket peer |
 | UI | lxn/walk + lxn/win (Win32), via upstream-maintained forks replaced in `go.mod` |
