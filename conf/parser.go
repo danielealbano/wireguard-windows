@@ -154,7 +154,7 @@ func validateWebSocketPeer(p *Peer, wsKeys []string) error {
 	isWSTunnel := p.WSMode == WSModeWSTunnel
 	switch {
 	case p.WSURL != "" && p.WSMode == WSModeNone:
-		return &ParseError{l18n.Sprintf("A WebSocket endpoint requires WSMode"), p.WSURL}
+		return &ParseError{l18n.Sprintf("A WebSocket endpoint requires WSMode"), redactWSURL(p.WSURL)}
 	case p.WSURL == "" && p.WSMode != WSModeNone && !p.Endpoint.IsEmpty():
 		return &ParseError{l18n.Sprintf("WSMode requires a ws:// or wss:// endpoint"), p.Endpoint.String()}
 	case isWSTunnel && p.WSURL == "":

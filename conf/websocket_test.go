@@ -301,19 +301,21 @@ func TestFromWgQuick_WebSocketURLPassword_NotInErrors(t *testing.T) {
 	tests := []struct {
 		name     string
 		endpoint string
+		extra    string
 	}{
-		{name: "userinfo", endpoint: "wss://user:S3cretPw@vpn.example.com:443/ws"},
-		{name: "userinfo and query without path", endpoint: "wss://user:S3cretPw@vpn.example.com:443?x=1"},
-		{name: "userinfo and missing port", endpoint: "wss://user:S3cretPw@vpn.example.com/ws"},
-		{name: "userinfo and unparsable URL", endpoint: "wss://user:S3cretPw@vpn example.com:443/%zz"},
-		{name: "slash in the password", endpoint: "wss://user:S3cret/Pw@vpn.example.com:443/ws"},
-		{name: "question mark in the password", endpoint: "wss://user:S3cret?Pw@vpn.example.com:443/ws"},
-		{name: "hash in the password cuts the line", endpoint: "wss://user:S3cret#Pw@vpn.example.com:443/ws"},
-		{name: "digits then question mark in the password", endpoint: "wss://user:2024?S3cret@vpn.example.com:443/ws"},
+		{name: "userinfo", endpoint: "wss://user:S3cretPw@vpn.example.com:443/ws", extra: "WSMode = websocket\n"},
+		{name: "userinfo and query without path", endpoint: "wss://user:S3cretPw@vpn.example.com:443?x=1", extra: "WSMode = websocket\n"},
+		{name: "userinfo and missing port", endpoint: "wss://user:S3cretPw@vpn.example.com/ws", extra: "WSMode = websocket\n"},
+		{name: "userinfo and unparsable URL", endpoint: "wss://user:S3cretPw@vpn example.com:443/%zz", extra: "WSMode = websocket\n"},
+		{name: "slash in the password", endpoint: "wss://user:S3cret/Pw@vpn.example.com:443/ws", extra: "WSMode = websocket\n"},
+		{name: "question mark in the password", endpoint: "wss://user:S3cret?Pw@vpn.example.com:443/ws", extra: "WSMode = websocket\n"},
+		{name: "hash in the password cuts the line", endpoint: "wss://user:S3cret#Pw@vpn.example.com:443/ws", extra: "WSMode = websocket\n"},
+		{name: "digits then question mark in the password", endpoint: "wss://user:2024?S3cret@vpn.example.com:443/ws", extra: "WSMode = websocket\n"},
+		{name: "URL without WSMode", endpoint: "wss://user:2024/S3cret@vpn.example.com:443/ws"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := FromWgQuick(wsTestConfig("Endpoint = "+tc.endpoint+"\nWSMode = websocket\n"), "ws")
+			_, err := FromWgQuick(wsTestConfig("Endpoint = "+tc.endpoint+"\n"+tc.extra), "ws")
 			if err == nil {
 				t.Fatal("FromWgQuick accepted the URL")
 			}
