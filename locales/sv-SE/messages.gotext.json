@@ -704,10 +704,9 @@
             "comment": "Text to insert when combining units of a measure - most languages will translate ‘[UnitSeparator]’ into ‘ ’ (space) to produce lists like ‘2 minuti 30 sekund’, or empty string ‘’ to produce ‘2分30秒’."
         },
         {
-            "id": "About WireGuard",
-            "message": "About WireGuard",
-            "translation": "Om WireGuard",
-            "translatorComment": "Copied from source."
+            "id": "About WireGuard WS",
+            "message": "About WireGuard WS",
+            "translation": ""
         },
         {
             "id": "WireGuard logo image",
@@ -762,6 +761,11 @@
                     "expr": "version.Arch()"
                 }
             ]
+        },
+        {
+            "id": "Unofficial build based on the official WireGuard for Windows,\nadding per-peer WebSocket/wstunnel transport to reach servers\non networks that block plain UDP. It requires the matching\nserver-side forks of wireguard-go and wireguard-tools.",
+            "message": "Unofficial build based on the official WireGuard for Windows,\nadding per-peer WebSocket/wstunnel transport to reach servers\non networks that block plain UDP. It requires the matching\nserver-side forks of wireguard-go and wireguard-tools.",
+            "translation": ""
         },
         {
             "id": "Close",

@@ -803,9 +803,9 @@
             "fuzzy": true
         },
         {
-            "id": "About WireGuard",
-            "message": "About WireGuard",
-            "translation": "About WireGuard",
+            "id": "About WireGuard WS",
+            "message": "About WireGuard WS",
+            "translation": "About WireGuard WS",
             "translatorComment": "Copied from source.",
             "fuzzy": true
         },
@@ -863,6 +863,13 @@
                     "expr": "version.Arch()"
                 }
             ],
+            "fuzzy": true
+        },
+        {
+            "id": "Unofficial build based on the official WireGuard for Windows,\nadding per-peer WebSocket/wstunnel transport to reach servers\non networks that block plain UDP. It requires the matching\nserver-side forks of wireguard-go and wireguard-tools.",
+            "message": "Unofficial build based on the official WireGuard for Windows,\nadding per-peer WebSocket/wstunnel transport to reach servers\non networks that block plain UDP. It requires the matching\nserver-side forks of wireguard-go and wireguard-tools.",
+            "translation": "Unofficial build based on the official WireGuard for Windows,\nadding per-peer WebSocket/wstunnel transport to reach servers\non networks that block plain UDP. It requires the matching\nserver-side forks of wireguard-go and wireguard-tools.",
+            "translatorComment": "Copied from source.",
             "fuzzy": true
         },
         {
