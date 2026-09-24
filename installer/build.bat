@@ -43,7 +43,7 @@ if exist .deps\prepared goto :build
 	if "%SigningProvider%"=="" goto :success
 	if "%TimestampServer%"=="" goto :success
 	echo [+] Signing
-	signtool sign %SigningProvider% /fd sha256 /tr "%TimestampServer%" /td sha256 /d "WireGuard Setup" "dist\wireguard-*-%WIREGUARD_VERSION%.msi" || goto :error
+	signtool sign %SigningProvider% /fd sha256 /tr "%TimestampServer%" /td sha256 /d "WireGuard WS Setup" "dist\wireguard-ws-*-%WIREGUARD_VERSION%.msi" || goto :error
 
 :success
 	echo [+] Success.
@@ -64,11 +64,11 @@ if exist .deps\prepared goto :build
 	if "%SigningProvider%"=="" goto :skipsign
 	if "%TimestampServer%"=="" goto :skipsign
 	echo [+] Signing %1
-	signtool sign %SigningProvider% /fd sha256 /tr "%TimestampServer%" /td sha256 /d "WireGuard Setup Custom Actions" "%~1\customactions.dll" || exit /b 1
+	signtool sign %SigningProvider% /fd sha256 /tr "%TimestampServer%" /td sha256 /d "WireGuard WS Setup Custom Actions" "%~1\customactions.dll" || exit /b 1
 :skipsign
 	"%WIX%bin\candle" %WIX_CANDLE_FLAGS% -dWIREGUARD_PLATFORM="%~1" -out "%~1\wireguard.wixobj" -arch %3 wireguard.wxs || exit /b %errorlevel%
 	echo [+] Linking %1
-	"%WIX%bin\light" %WIX_LIGHT_FLAGS% -out "dist\wireguard-%~1-%WIREGUARD_VERSION%.msi" "%~1\wireguard.wixobj" || exit /b %errorlevel%
+	"%WIX%bin\light" %WIX_LIGHT_FLAGS% -out "dist\wireguard-ws-%~1-%WIREGUARD_VERSION%.msi" "%~1\wireguard.wixobj" || exit /b %errorlevel%
 	goto :eof
 
 :error
