@@ -186,16 +186,19 @@ The parser rejects unknown keys, so every new key must be added to the model, th
 the highlighter, and the config view together. The WebSocket keys and their validation mirror the
 Android and Apple clients (see [`PROJECT.md`](PROJECT.md)).
 
-**TLS files.** In a stored tunnel, `WSTLSCA`, `WSTLSCert` and `WSTLSKey` are bare file names. When the
+**TLS files.** A tunnel saved or imported by the UI refers to its `WSTLSCA`, `WSTLSCert` and `WSTLSKey`
+files by bare file name. When the
 editor saves or the importer imports a config, the unprivileged UI reads each referenced file (an
 absolute path, a path next to the imported `.conf`, or an entry of the imported zip), tells the user
 which files it copied, and sends the contents with the config (`Config.WSTLSFiles`). The manager
 validates them and stores each DPAPI-encrypted in `Data\WebSocketTLS\<tunnel>\`; `StoredConfig`
 returns them to administrators only, so edits, renames and zip exports keep them. At start the tunnel
 service decrypts them into `Data\WebSocketTLS\$runtime\<tunnel>\`, readable by SYSTEM only, and
-removes them at stop; they are deleted with the tunnel. A config started from disk with
-`/installtunnelservice` must use absolute local paths, which are read in place; relative, UNC and
-device paths are rejected.
+removes them at stop, and also removes stale copies at the next start and when the tunnel is deleted;
+the stored copies are deleted with the tunnel. A stored tunnel may instead refer to absolute local
+paths (for example a `.conf` dropped into `Data\Configurations` and migrated as is), and a config
+started from disk with `/installtunnelservice` must use them; the tunnel service reads them in place.
+Relative, UNC and device paths are rejected.
 
 ## 5. Firewall, kill switch & routing
 

@@ -100,9 +100,9 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
   migrated. Admins can also run a tunnel from an on-disk `.conf` via `/installtunnelservice`
   (see [`enterprise.md`](enterprise.md)); that file is read in place at every start.
 - **TLS files** (`conf/wstls.go`, `conf/wstls_store.go`): see [`ARCHITECTURE.md`](ARCHITECTURE.md) §4 —
-  bare file names in stored tunnels (DPAPI-encrypted copies in `Data\WebSocketTLS\<tunnel>\`,
-  decrypted for SYSTEM only while the tunnel runs), absolute local paths read in place for on-disk
-  configs.
+  bare file names for tunnels saved or imported by the UI (DPAPI-encrypted copies in
+  `Data\WebSocketTLS\<tunnel>\`, decrypted for SYSTEM only while the tunnel runs); absolute local
+  paths, read in place, for on-disk configs and for configurations dropped into the store.
 
 ## Build, packaging & release
 
@@ -215,4 +215,5 @@ routes of a new address); the UDP `BindSocketToInterface` pin only works after `
 - The UDP sockets of a userspace tunnel are pinned to the default-route interface with `IP_UNICAST_IF`,
   re-pinned after every re-dial, and blackholed when the tunnel carries a default route and there is no
   other one.
-- Stored TLS file references are bare file names (see decision 5).
+- The UI stores TLS file references as bare file names (see decision 5); a configuration dropped into
+  the store keeps its absolute local paths, which the tunnel service reads in place.
