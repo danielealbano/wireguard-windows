@@ -43,6 +43,7 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 	var dev *device.Device
 	var uapi net.Listener
 	var routeMonitor *defaultRouteMonitor
+	var removeWSTLSFiles func()
 	var luid winipcfg.LUID
 	var config *conf.Config
 	var err error
@@ -109,6 +110,9 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 		if adapter != nil {
 			adapter.Close()
 		}
+		if removeWSTLSFiles != nil {
+			removeWSTLSFiles()
+		}
 		if logErr == nil && (adapter != nil || nativeTun != nil) && config != nil {
 			_ = runScriptCommand(config.Interface.PostDown, config.Name)
 		}
@@ -134,6 +138,11 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 		return
 	}
 	config.DeduplicateNetworkEntries()
+	removeWSTLSFiles, err = config.PrepareWSTLSFiles(conf.PathIsEncrypted(service.Path))
+	if err != nil {
+		serviceError = services.ErrorLoadConfiguration
+		return
+	}
 
 	log.SetPrefix(fmt.Sprintf("[%s] ", config.Name))
 
