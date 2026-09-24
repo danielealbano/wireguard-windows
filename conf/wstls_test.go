@@ -87,6 +87,7 @@ func TestSanitizeWSTLSFileName(t *testing.T) {
 		{base: "", want: wsTLSFileNameFallback},
 		{base: ".ca.pem.", want: "ca.pem"},
 		{base: "aux.key", want: "_aux.key"},
+		{base: "aux." + strings.Repeat("a", 56) + ".pem", want: "_aux." + strings.Repeat("a", 55) + ".pem"},
 		{base: "clé.pem", want: "cl_.pem"},
 		{base: strings.Repeat("a", 70) + ".pem", want: strings.Repeat("a", 60) + ".pem"},
 	}

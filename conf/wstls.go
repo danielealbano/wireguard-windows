@@ -63,18 +63,18 @@ func sanitizeWSTLSFileName(base string) string {
 		}
 	}
 	name := strings.Trim(b.String(), ".")
+	if name == "" {
+		return wsTLSFileNameFallback
+	}
+	if isReserved(name) {
+		name = "_" + name
+	}
 	if len(name) > wsTLSFileNameMaxLen {
 		ext := filepath.Ext(name)
 		if len(ext) > wsTLSFileNameMaxLen/2 {
 			ext = ""
 		}
 		name = strings.TrimRight(name[:wsTLSFileNameMaxLen-len(ext)], ".") + ext
-	}
-	if name == "" {
-		return wsTLSFileNameFallback
-	}
-	if isReserved(name) {
-		name = "_" + name
 	}
 	return name
 }

@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -268,5 +269,22 @@ func FromUAPI(reader io.Reader, existingConfig *Config) (*Config, error) {
 		}
 	}
 	addPeer()
+	// The device reports its peers in no particular order; keep the stored order, which the
+	// UI relies on to match peers once Redact has replaced their keys with their positions.
+	position := make(map[Key]int, len(existingConfig.Peers))
+	for i := range existingConfig.Peers {
+		position[existingConfig.Peers[i].PublicKey] = i
+	}
+	sort.SliceStable(conf.Peers, func(i, j int) bool {
+		pi, ok := position[conf.Peers[i].PublicKey]
+		if !ok {
+			pi = len(existingConfig.Peers)
+		}
+		pj, ok := position[conf.Peers[j].PublicKey]
+		if !ok {
+			pj = len(existingConfig.Peers)
+		}
+		return pi < pj
+	})
 	return &conf, nil
 }

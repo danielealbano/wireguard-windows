@@ -106,7 +106,7 @@ func parseWSURL(s string) (*Endpoint, error) {
 		return nil, &ParseError{l18n.Sprintf("WebSocket endpoint URL must not contain a user name or password"), redactWSURL(s)}
 	}
 	if u.Path == "" && (u.RawQuery != "" || u.ForceQuery || u.Fragment != "") {
-		return nil, &ParseError{l18n.Sprintf("WebSocket endpoint URL query or fragment requires a path"), s}
+		return nil, &ParseError{l18n.Sprintf("WebSocket endpoint URL query or fragment requires a path"), redactWSURL(s)}
 	}
 	host, port := u.Hostname(), u.Port()
 	if host == "" || port == "" {

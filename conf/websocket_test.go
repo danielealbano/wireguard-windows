@@ -6,6 +6,7 @@
 package conf
 
 import (
+	"encoding/hex"
 	"strings"
 	"testing"
 )
@@ -308,6 +309,7 @@ func TestFromWgQuick_WebSocketURLPassword_NotInErrors(t *testing.T) {
 		{name: "slash in the password", endpoint: "wss://user:S3cret/Pw@vpn.example.com:443/ws"},
 		{name: "question mark in the password", endpoint: "wss://user:S3cret?Pw@vpn.example.com:443/ws"},
 		{name: "hash in the password cuts the line", endpoint: "wss://user:S3cret#Pw@vpn.example.com:443/ws"},
+		{name: "digits then question mark in the password", endpoint: "wss://user:2024?S3cret@vpn.example.com:443/ws"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -338,4 +340,32 @@ func TestRedactWSURL(t *testing.T) {
 			equal(t, tc.want, redactWSURL(tc.in))
 		})
 	}
+}
+
+func TestFromUAPI_KeepsTheStoredPeerOrder(t *testing.T) {
+	stored, err := FromWgQuick(wsTestInterface+`
+[Peer]
+PublicKey = `+wsTestPeerKey+`
+AllowedIPs = 10.0.0.1/32
+
+[Peer]
+PublicKey = TrMvSoP4jYQlY6RIzBgbssQqY3vxI2Pi+y71lOWWXX0=
+AllowedIPs = 10.0.0.2/32
+`, "ws")
+	if err != nil {
+		t.Fatalf("FromWgQuick: %v", err)
+	}
+	peerLines := func(p *Peer) string {
+		return "public_key=" + hex.EncodeToString(p.PublicKey[:]) + "\nprotocol_version=1\ntransport=udp\nallowed_ip=" + p.AllowedIPs[0].String() + "\n"
+	}
+	response := "private_key=" + strings.Repeat("11", 32) + "\n" + peerLines(&stored.Peers[1]) + peerLines(&stored.Peers[0]) + "errno=0\n\n"
+	c, err := FromUAPI(strings.NewReader(response), stored)
+	if err != nil {
+		t.Fatalf("FromUAPI: %v", err)
+	}
+	if len(c.Peers) != 2 {
+		t.Fatalf("got %d peers, want 2", len(c.Peers))
+	}
+	equal(t, stored.Peers[0].PublicKey, c.Peers[0].PublicKey)
+	equal(t, stored.Peers[1].PublicKey, c.Peers[1].PublicKey)
 }
