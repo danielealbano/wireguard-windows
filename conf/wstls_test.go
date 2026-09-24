@@ -349,3 +349,31 @@ func TestWSTLSZipFileReader(t *testing.T) {
 		})
 	}
 }
+
+func TestUniqueWSTLSFileName(t *testing.T) {
+	long := "k." + strings.Repeat("a", 62)
+	tests := []struct {
+		name  string
+		taken []string
+		want  string
+	}{
+		{name: "ca.pem", taken: nil, want: "ca.pem"},
+		{name: "ca.pem", taken: []string{"ca.pem"}, want: "ca-2.pem"},
+		{name: "ca.pem", taken: []string{"CA.PEM", "ca-2.pem"}, want: "ca-3.pem"},
+		{name: strings.Repeat("a", 64), taken: []string{strings.Repeat("a", 64)}, want: strings.Repeat("a", 62) + "-2"},
+		{name: long, taken: []string{long}, want: long[:62] + "-2"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			taken := make(map[string]bool)
+			for _, n := range tc.taken {
+				taken[strings.ToLower(n)] = true
+			}
+			got := uniqueWSTLSFileName(tc.name, taken)
+			equal(t, tc.want, got)
+			if !WSTLSFileNameIsValid(got) {
+				t.Errorf("unique name %q is not valid", got)
+			}
+		})
+	}
+}

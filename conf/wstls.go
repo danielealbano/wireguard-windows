@@ -86,6 +86,9 @@ func uniqueWSTLSFileName(name string, taken map[string]bool) string {
 		return name
 	}
 	ext := filepath.Ext(name)
+	if len(ext) > wsTLSFileNameMaxLen/2 {
+		ext = ""
+	}
 	stem := strings.TrimSuffix(name, ext)
 	for i := 2; ; i++ {
 		suffix := fmt.Sprintf("-%d", i)

@@ -8,6 +8,7 @@ package conf
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -180,7 +181,11 @@ func (config *Config) PrepareWSTLSFiles(fromStore bool) (func(), error) {
 				if err != nil {
 					return nil, err
 				}
-				cleanup = func() { os.RemoveAll(runtimeDir) }
+				cleanup = func() {
+					if err := os.RemoveAll(runtimeDir); err != nil {
+						log.Printf("Unable to remove the decrypted TLS files: %v", err)
+					}
+				}
 			}
 			data, err := loadWSTLSFile(config.Name, *ref)
 			if err != nil {
