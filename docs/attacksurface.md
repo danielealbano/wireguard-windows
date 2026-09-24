@@ -16,7 +16,10 @@ WireGuardNT is a kernel driver. It exposes:
 
 ### Tunnel Service
 
-The tunnel service is a userspace service running as Local System, responsible for creating WireGuardNT adapters and configuring them. It exposes:
+The tunnel service is a userspace service running as Local System, responsible for creating WireGuardNT adapters and configuring them. A tunnel with a WebSocket peer instead runs the wireguard-go userspace implementation over a Wintun adapter inside this service. It exposes:
+
+  - For a WebSocket tunnel, the UAPI named pipe `\\.\pipe\ProtectedPrefix\Administrators\WireGuard\<name>`, with the security descriptor `O:SYD:P(A;;GA;;;SY)(A;;GA;;;BA)S:(ML;;NWNRNX;;;HI)`, which gets and sets the full configuration. The manager checks that it is owned by Local System before reading runtime statistics from it.
+  - For a WebSocket tunnel of the configuration store, its TLS files decrypted into `Data\WebSocketTLS\$runtime\<name>`, each readable only by Local System, while the tunnel runs.
 
   - A global mutex is used for WireGuardNT interface creation, with the same DACL as the pipe, but first CreatePrivateNamespace is called with a "Local System" SID.
   - After some initial setup, it uses `AdjustTokenPrivileges` to remove all privileges, except for `SeLoadDriverPrivilege`, so that it can remove the interface when shutting down. This latter point is rather unfortunate, as `SeLoadDriverPrivilege` can be used for all sorts of interesting escalation. Future work includes forking an additional process or the like so that we can drop this from the main tunnel process.

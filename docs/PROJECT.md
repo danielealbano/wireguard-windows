@@ -29,7 +29,7 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
 | Localization | `golang.org/x/text/message`; `locales/*/messages.gotext.json` (Crowdin) → generated `zgotext.go` |
 | Admin policy | `HKLM\Software\WireGuard WS` knobs (`LimitedOperatorUI`, `DangerousScriptExecution`) — see [`adminregistry.md`](adminregistry.md) |
 | CLI tool | `wg.exe`, built by `build.bat` from the `danielealbano/wireguard-tools` fork pinned at `68b49a93` |
-| Packaging | WiX 3.14.1 MSI (`installer/`), per-architecture MSIs + the `wireguard-installer.exe` fetcher |
+| Packaging | WiX 3.14.1 MSI (`installer/`), per-architecture MSIs (upstream's `installer/fetcher` bootstrapper is not built) |
 | Build | `build.bat` on Windows (canonical: x86, amd64, arm64 + `wg.exe`; llvm-mingw) · `Makefile` on Linux (`wireguard.exe` only; mingw-w64) |
 | Tests / CI | Windows-only Go tests; GitHub Actions on `windows-latest` (see [Testing](#testing)) |
 
@@ -149,8 +149,8 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
 - **Automated**: Windows-only Go tests in `conf/`, `conf/dpapi/`, `ringlogger/`, `tunnel/`,
   `tunnel/firewall/`, `tunnel/winipcfg/`, `ui/syntax/`, `updater/`, `updater/winhttp/`, `version/`.
   Some need elevation, a live network, or the official signature. No package compiles its tests on a
-  non-Windows host. Tests that use the real configuration store carry the `integration` build tag
-  (`conf/wstls_store_test.go`). The fork's tests run with `-race` (cgo with the llvm-mingw of
+  non-Windows host. `conf/store_test.go` (upstream, untagged) and `conf/wstls_store_test.go` (the
+  fork's, `integration` build tag) write to the real configuration store. The fork's tests run with `-race` (cgo with the llvm-mingw of
   `build.bat`): `go test -race -tags integration ./conf ./ui/syntax ./tunnel`.
 - **CI** (`.github/workflows/ci.yml`, `windows-latest`): `build.bat`, `gofmt`, `go mod tidy`, `go vet`
   on amd64 and arm64 failing only on lines the fork added or changed since `6ece77bc` (the vendored
