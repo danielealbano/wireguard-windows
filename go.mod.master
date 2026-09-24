@@ -9,9 +9,13 @@ require (
 	golang.org/x/net latest
 	golang.org/x/sys latest
 	golang.org/x/text master
+	golang.zx2c4.com/wintun latest
+	golang.zx2c4.com/wireguard latest
 )
 
 replace (
 	github.com/lxn/walk => golang.zx2c4.com/wireguard/windows pkg/walk
 	github.com/lxn/win => golang.zx2c4.com/wireguard/windows pkg/walk-win
+	golang.zx2c4.com/wintun => ./wintun
+	golang.zx2c4.com/wireguard => github.com/danielealbano/wireguard-go v1.3.1
 )
