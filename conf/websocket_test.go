@@ -66,6 +66,14 @@ func TestFromWgQuick_WebSocketPeer_Valid(t *testing.T) {
 			},
 		},
 		{
+			name: "an @ after the host part belongs to the path",
+			peer: "Endpoint = wss://vpn.example.com:443/p@th\nWSMode = websocket\n",
+			check: func(t *testing.T, p *Peer) {
+				equal(t, "wss://vpn.example.com:443/p@th", p.WSURL)
+				equal(t, Endpoint{Host: "vpn.example.com", Port: 443}, p.Endpoint)
+			},
+		},
+		{
 			name: "inbound websocket peer without endpoint",
 			peer: "WSMode = websocket\n",
 			check: func(t *testing.T, p *Peer) {

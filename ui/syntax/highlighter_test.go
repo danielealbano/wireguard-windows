@@ -43,6 +43,7 @@ func TestHighlightConfig_WebSocketKeys(t *testing.T) {
 	}{
 		{name: "ws URL endpoint", line: "Endpoint = wss://vpn.example.com:443/ws", value: highlightHost},
 		{name: "ws URL endpoint with IPv6", line: "Endpoint = ws://[2001:db8::1]:80/x", value: highlightHost},
+		{name: "ws URL with an @ in the path", line: "Endpoint = wss://vpn.example.com:443/p@th", value: highlightHost},
 		{name: "ws URL without port", line: "Endpoint = ws://vpn.example.com/ws", value: highlightError},
 		{name: "ws URL with userinfo", line: "Endpoint = ws://u:p@vpn.example.com:80/ws", value: highlightError},
 		{name: "ws URL query without path", line: "Endpoint = ws://vpn.example.com:80?x", value: highlightError},
