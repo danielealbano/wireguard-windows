@@ -41,6 +41,12 @@ type defaultRouteFamily struct {
 	blackhole bool
 	hosts     []netip.Prefix
 	gateway   defaultGateway
+	// owned holds the host routes through gateway that this monitor added, the only ones
+	// it removes; a route that already existed belongs to someone else.
+	owned map[netip.Prefix]bool
+	// incomplete is set while not every host route is known to go through gateway, so
+	// that a failed AddRoute, or a host route deleted by someone else, is retried.
+	incomplete bool
 }
 
 type defaultGateway struct {
@@ -87,10 +93,14 @@ func webSocketServerHosts(config *conf.Config, family winipcfg.AddressFamily) []
 			continue
 		}
 		addr, err := netip.ParseAddr(peer.Endpoint.Host)
-		if err != nil || addr.Is4() != (family == windows.AF_INET) {
+		if err != nil {
 			continue
 		}
-		prefix := netip.PrefixFrom(addr.Unmap(), addr.Unmap().BitLen())
+		addr = addr.Unmap()
+		if addr.Is4() != (family == windows.AF_INET) {
+			continue
+		}
+		prefix := netip.PrefixFrom(addr, addr.BitLen())
 		duplicate := false
 		for _, host := range hosts {
 			duplicate = duplicate || host == prefix
@@ -112,6 +122,7 @@ func newDefaultRouteMonitor(config *conf.Config, binder conn.BindSocketToInterfa
 			family:    family,
 			blackhole: hasDefaultRoute(family, config),
 			hosts:     webSocketServerHosts(config, family),
+			owned:     make(map[netip.Prefix]bool),
 		}
 	}
 	m.mu.Lock()
@@ -139,7 +150,11 @@ func (m *defaultRouteMonitor) start() error {
 	})
 	m.burstTimer.Stop()
 	cbr, err := winipcfg.RegisterRouteChangeCallback(func(notificationType winipcfg.MibNotificationType, route *winipcfg.MibIPforwardRow2) {
-		if route != nil && route.DestinationPrefix.PrefixLength == 0 {
+		if route == nil {
+			return
+		}
+		if route.DestinationPrefix.PrefixLength == 0 ||
+			(notificationType == winipcfg.MibDeleteInstance && m.hostRouteDeleted(route)) {
 			m.bump()
 		}
 	})
@@ -159,6 +174,25 @@ func (m *defaultRouteMonitor) start() error {
 	m.callbacks = []winipcfg.ChangeCallback{cbr, cbi}
 	m.mu.Unlock()
 	return nil
+}
+
+// hostRouteDeleted marks a family incomplete when a route to one of its WebSocket servers
+// was deleted, for example by another tunnel to the same server, so that the next update
+// adds the host route again if it is gone.
+func (m *defaultRouteMonitor) hostRouteDeleted(route *winipcfg.MibIPforwardRow2) bool {
+	prefix := route.DestinationPrefix.Prefix()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.families {
+		f := &m.families[i]
+		for _, host := range f.hosts {
+			if host == prefix {
+				f.incomplete = true
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (m *defaultRouteMonitor) bump() {
@@ -183,7 +217,6 @@ func (m *defaultRouteMonitor) update() {
 	movedHostRoutes, err := m.updateLocked()
 	if err != nil {
 		log.Printf("Unable to follow the default route: %v", err)
-		return
 	}
 	if movedHostRoutes {
 		log.Println("Reconnecting WebSocket peers after a default route change")
@@ -197,37 +230,58 @@ func (m *defaultRouteMonitor) update() {
 }
 
 // updateLocked reads the default gateways and moves the host routes of the families
-// whose gateway changed, reporting whether any host route moved.
+// whose gateway changed or whose routes are incomplete, reporting whether any host
+// route moved and the first error.
 func (m *defaultRouteMonitor) updateLocked() (bool, error) {
 	moved := false
+	var firstErr error
 	for i := range m.families {
 		f := &m.families[i]
 		gateway, err := findDefaultGateway(f.family, m.ourLUID)
 		if err != nil {
-			return moved, err
-		}
-		if gateway == f.gateway {
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
-		if len(f.hosts) != 0 {
-			log.Printf("Routing WebSocket servers %v through interface %d", f.hosts, gateway.index)
+		if gateway == f.gateway && !f.incomplete {
+			continue
 		}
 		previous := f.gateway
-		f.gateway = gateway
-		for _, host := range f.hosts {
-			if previous.luid != 0 {
+		f.gateway, f.incomplete = gateway, true
+		if previous != gateway {
+			if len(f.hosts) != 0 {
+				log.Printf("Routing WebSocket servers %v through interface %d", f.hosts, gateway.index)
+			}
+			for host := range f.owned {
 				previous.luid.DeleteRoute(host, previous.nextHop)
 			}
-			if gateway.luid != 0 {
-				err := gateway.luid.AddRoute(host, gateway.nextHop, 0)
-				if err != nil && err != windows.ERROR_OBJECT_ALREADY_EXISTS {
-					return moved, fmt.Errorf("unable to add host route %v: %w", host, err)
-				}
-			}
-			moved = true
+			clear(f.owned)
+			moved = moved || len(f.hosts) != 0
 		}
+		for _, host := range f.hosts {
+			if gateway.luid == 0 {
+				continue
+			}
+			err = gateway.luid.AddRoute(host, gateway.nextHop, 0)
+			if err == nil {
+				f.owned[host] = true
+				moved = true
+			} else if err != windows.ERROR_OBJECT_ALREADY_EXISTS {
+				err = fmt.Errorf("unable to add host route %v: %w", host, err)
+				break
+			}
+			err = nil
+		}
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		f.incomplete = false
 	}
-	return moved, nil
+	return moved, firstErr
 }
 
 func (m *defaultRouteMonitor) pinSocketsLocked() error {
@@ -252,12 +306,10 @@ func (m *defaultRouteMonitor) pinSocketsLocked() error {
 func (m *defaultRouteMonitor) removeHostRoutesLocked() {
 	for i := range m.families {
 		f := &m.families[i]
-		if f.gateway.luid == 0 {
-			continue
-		}
-		for _, host := range f.hosts {
+		for host := range f.owned {
 			f.gateway.luid.DeleteRoute(host, f.gateway.nextHop)
 		}
+		clear(f.owned)
 		f.gateway = defaultGateway{}
 	}
 }

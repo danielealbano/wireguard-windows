@@ -19,7 +19,7 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
 
 | Concern | Choice |
 |---|---|
-| Language | Go (pure Go — no cgo in the main module); module `golang.zx2c4.com/wireguard/windows`, `go 1.26.0`; build scripts pin Go 1.27.1 |
+| Language | Go (pure Go — no cgo in the main module); module `golang.zx2c4.com/wireguard/windows`, `go 1.26.5`; build scripts pin Go 1.27.1 |
 | Kernel driver | WireGuardNT 1.1 (`wireguard.dll`, embedded as `RCDATA`, loaded in-memory by `driver/memmod` with build tag `load_wgnt_from_rsrc`) for UDP-only tunnels |
 | Userspace backend | `danielealbano/wireguard-go` fork **v1.3.1** (`replace golang.zx2c4.com/wireguard` in `go.mod`) over **Wintun 0.14.1** (`wintun.dll`, embedded as `RCDATA`, loaded in-memory with build tag `load_wintun_from_rsrc` through the `wintun/` copy of the bindings) for tunnels with a WebSocket peer |
 | UI | lxn/walk + lxn/win (Win32), via upstream-maintained forks replaced in `go.mod` |
@@ -29,7 +29,7 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
 | Localization | `golang.org/x/text/message`; `locales/*/messages.gotext.json` (Crowdin) → generated `zgotext.go` |
 | Admin policy | `HKLM\Software\WireGuard WS` knobs (`LimitedOperatorUI`, `DangerousScriptExecution`) — see [`adminregistry.md`](adminregistry.md) |
 | CLI tool | `wg.exe`, built by `build.bat` from the `danielealbano/wireguard-tools` fork pinned at `68b49a93` |
-| Packaging | WiX 3.14.1 MSI (`installer/`), per-architecture MSIs + the `wireguard-installer.exe` fetcher |
+| Packaging | WiX 3.14.1 MSI (`installer/`), per-architecture MSIs (upstream's `installer/fetcher` bootstrapper is not built) |
 | Build | `build.bat` on Windows (canonical: x86, amd64, arm64 + `wg.exe`; llvm-mingw) · `Makefile` on Linux (`wireguard.exe` only; mingw-w64) |
 | Tests / CI | Windows-only Go tests; GitHub Actions on `windows-latest` (see [Testing](#testing)) |
 
@@ -53,8 +53,8 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
 | `installer/` | WiX MSI sources, C custom actions, `fetcher/` bootstrapper |
 | `embeddable-dll-service/` | `tunnel.dll` for embedding + C# demo — **out of scope for this fork** |
 | `wintun/` | Copy of the `golang.zx2c4.com/wintun` bindings (`wintun-go` `0fa3db229ce2`, MIT), replaced in `go.mod`, whose loader with `load_wintun_from_rsrc` reads `wintun.dll` from `RCDATA` |
-| `.github/workflows/` | CI (`ci.yml`) |
-| `resources.rc`, `manifest.xml` | Windows resources (icons, version info, embedded `wireguard.dll`, manifest) |
+| `.github/workflows/` | CI (`ci.yml`) and the tag-triggered release (`release.yml`) |
+| `resources.rc`, `manifest.xml` | Windows resources (icons, version info, embedded `wintun.dll` and `wireguard.dll`, manifest) |
 | `build.bat`, `Makefile`, `go.mod.master` | Builds (Windows / Linux) and the `remaster` dependency-refresh template |
 | `docs/` | This file, [`ARCHITECTURE.md`](ARCHITECTURE.md), upstream reference docs, `plans/` |
 
@@ -100,9 +100,9 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
   migrated. Admins can also run a tunnel from an on-disk `.conf` via `/installtunnelservice`
   (see [`enterprise.md`](enterprise.md)); that file is read in place at every start.
 - **TLS files** (`conf/wstls.go`, `conf/wstls_store.go`): see [`ARCHITECTURE.md`](ARCHITECTURE.md) §4 —
-  bare file names in stored tunnels (DPAPI-encrypted copies in `Data\WebSocketTLS\<tunnel>\`,
-  decrypted for SYSTEM only while the tunnel runs), absolute local paths read in place for on-disk
-  configs.
+  bare file names for tunnels saved or imported by the UI (DPAPI-encrypted copies in
+  `Data\WebSocketTLS\<tunnel>\`, decrypted for SYSTEM only while the tunnel runs); absolute local
+  paths, read in place, for on-disk configs and for configurations dropped into the store.
 
 ## Build, packaging & release
 
@@ -149,8 +149,8 @@ kill-switch behaviour see [`netquirk.md`](netquirk.md).
 - **Automated**: Windows-only Go tests in `conf/`, `conf/dpapi/`, `ringlogger/`, `tunnel/`,
   `tunnel/firewall/`, `tunnel/winipcfg/`, `ui/syntax/`, `updater/`, `updater/winhttp/`, `version/`.
   Some need elevation, a live network, or the official signature. No package compiles its tests on a
-  non-Windows host. Tests that use the real configuration store carry the `integration` build tag
-  (`conf/wstls_store_test.go`). The fork's tests run with `-race` (cgo with the llvm-mingw of
+  non-Windows host. `conf/store_test.go` (upstream, untagged) and `conf/wstls_store_test.go` (the
+  fork's, `integration` build tag) write to the real configuration store. The fork's tests run with `-race` (cgo with the llvm-mingw of
   `build.bat`): `go test -race -tags integration ./conf ./ui/syntax ./tunnel`.
 - **CI** (`.github/workflows/ci.yml`, `windows-latest`): `build.bat`, `gofmt`, `go mod tidy`, `go vet`
   on amd64 and arm64 failing only on lines the fork added or changed since `6ece77bc` (the vendored
@@ -180,7 +180,7 @@ UDP/WebSocket multiplex bind), with a config surface byte-compatible with the `w
 | 1 | Backend | **Per-tunnel dual backend.** A config with at least one WebSocket peer runs in the tunnel service on the wireguard-go fork in userspace over **Wintun**; pure-UDP configs stay on WireGuardNT, unchanged. This resurrects the pre-v0.5 userspace path (last present at `94949cd7`, removed in `548405e2`), which upstream once shipped side by side with WireGuardNT. |
 | 2 | Keeping the carrier off the tunnel | A **host route** (`/32` or `/128`) to each WebSocket peer's resolved endpoint via the current non-tunnel default gateway (lowest-metric default route excluding the tunnel), moved on default-route changes followed by a carrier re-dial (`BindUpdate`). Lives in this repo, like wg-quick on macOS. `IP_UNICAST_IF` does **not** work for the TCP carrier (spike T3/T4). Traffic from other processes to that IP is not tunnelled; with the kill switch active, WFP still blocks it. |
 | 3 | Config surface | Mimic the Android/Apple forks: the 11 client-only `[Peer]` keys (`WSMode`, `WSTunnelTarget`, `WSBearer`, `WSMask`, `WSTLSCA`, `WSTLSCert`, `WSTLSKey`, `WSTLSInsecure`, `WSPingInterval`, `WSBackoffMin`, `WSBackoffMax`) plus `ws://`/`wss://` URLs in `Endpoint`; device-level server keys (`WSListen`, `WSServer*`, `WSTrustedProxies`) are rejected. |
-| 4 | Where Android and Apple differ | The **wireguard-tools fork** is the tie-breaker: user/password in the URL **rejected** (the transport never sends it — authentication is `WSBearer`: `Bearer` for websocket, `Basic` base64 `user:pass` for wstunnel); query without a path rejected; a repeated key keeps the last value; timings are uint32 milliseconds (0 = default); `transport=` is emitted for every peer in the UAPI. |
+| 4 | Where Android and Apple differ | The **wireguard-tools fork** is the tie-breaker: user/password in the URL **rejected**, with the host part of any rejected URL masked in errors; an `@` after the host part belongs to the path, as the other forks parse it (the transport never sends a user/password — authentication is `WSBearer`: `Bearer` for websocket, `Basic` base64 `user:pass` for wstunnel); query without a path rejected; a repeated key keeps the last value; timings are uint32 milliseconds (0 = default); `transport=` is emitted for every peer in the UAPI. |
 | 5 | TLS files, UI-managed tunnels | On import, zip import (certificates inside the zip are resolved), and editor save, referenced certificate/key files are read by the UI, sent to the manager, and stored **DPAPI-encrypted** in the protected data directory with the paths rewritten to bare file names; the user is told the files were copied. The tunnel service decrypts them into a SYSTEM-only location at start and removes them at stop. They are deleted with the tunnel, carried over on rename, and included in zip export. |
 | 6 | TLS files, on-disk tunnels | For `/installtunnelservice C:\path\x.conf`, certificate paths are used **in place** (like wg-quick); **UNC/network and relative paths are rejected**. |
 | 7 | Identity | Branded **"WireGuard WS"** and installable **alongside** the official client: services `WireGuardWSManager` and `WireGuardWSTunnel$<name>`, data directory `%ProgramFiles%\WireGuard WS\Data`, registry key `HKLM\Software\WireGuard WS`, window title and management window class; MSI product "WireGuard WS" with its own codes, folder and publisher (Daniele Salvatore Albano), also in the executable's version information. The updater stays inactive. |
@@ -215,4 +215,5 @@ routes of a new address); the UDP `BindSocketToInterface` pin only works after `
 - The UDP sockets of a userspace tunnel are pinned to the default-route interface with `IP_UNICAST_IF`,
   re-pinned after every re-dial, and blackholed when the tunnel carries a default route and there is no
   other one.
-- Stored TLS file references are bare file names (see decision 5).
+- The UI stores TLS file references as bare file names (see decision 5); a configuration dropped into
+  the store keeps its absolute local paths, which the tunnel service reads in place.

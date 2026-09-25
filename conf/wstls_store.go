@@ -8,6 +8,7 @@ package conf
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,12 +121,26 @@ func (config *Config) LoadWSTLSFiles() error {
 	return nil
 }
 
-// DeleteWSTLSFiles removes the stored TLS files of a tunnel.
+// DeleteWSTLSFiles removes the stored TLS files of a tunnel and any decrypted copies.
 func DeleteWSTLSFiles(tunnelName string) error {
 	if !TunnelNameIsValid(tunnelName) {
 		return errors.New("Tunnel name is not valid")
 	}
 	dir, err := wsTLSDirectory(false, tunnelName)
+	if err != nil {
+		return err
+	}
+	err = os.RemoveAll(dir)
+	if err != nil {
+		return err
+	}
+	return removeWSTLSRuntimeFiles(tunnelName)
+}
+
+// removeWSTLSRuntimeFiles removes the decrypted TLS files of a tunnel, including those
+// left behind by a tunnel service that did not stop cleanly.
+func removeWSTLSRuntimeFiles(tunnelName string) error {
+	dir, err := wsTLSDirectory(false, wsTLSRuntimeDirectoryName, tunnelName)
 	if err != nil {
 		return err
 	}
@@ -140,16 +155,23 @@ func DeleteWSTLSFiles(tunnelName string) error {
 // removes the decrypted files.
 func (config *Config) PrepareWSTLSFiles(fromStore bool) (func(), error) {
 	refs := config.wsTLSReferences()
+	for _, ref := range refs {
+		if !IsWSTLSLocalPath(*ref) && (!fromStore || !WSTLSFileNameIsValid(*ref)) {
+			return nil, &ParseError{l18n.Sprintf("TLS file must be an absolute local path"), *ref}
+		}
+	}
 	cleanup := func() {}
+	if !fromStore {
+		return cleanup, nil
+	}
+	if err := removeWSTLSRuntimeFiles(config.Name); err != nil {
+		return nil, err
+	}
 	var runtimeDir string
 	paths := make(map[string]string)
 	for _, ref := range refs {
 		if IsWSTLSLocalPath(*ref) {
 			continue
-		}
-		if !fromStore || !WSTLSFileNameIsValid(*ref) {
-			cleanup()
-			return nil, &ParseError{l18n.Sprintf("TLS file must be an absolute local path"), *ref}
 		}
 		path, ok := paths[*ref]
 		if !ok {
@@ -159,7 +181,11 @@ func (config *Config) PrepareWSTLSFiles(fromStore bool) (func(), error) {
 				if err != nil {
 					return nil, err
 				}
-				cleanup = func() { os.RemoveAll(runtimeDir) }
+				cleanup = func() {
+					if err := os.RemoveAll(runtimeDir); err != nil {
+						log.Printf("Unable to remove the decrypted TLS files: %v", err)
+					}
+				}
 			}
 			data, err := loadWSTLSFile(config.Name, *ref)
 			if err != nil {

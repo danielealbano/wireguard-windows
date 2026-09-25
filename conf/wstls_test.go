@@ -6,6 +6,8 @@
 package conf
 
 import (
+	"archive/zip"
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -85,6 +87,7 @@ func TestSanitizeWSTLSFileName(t *testing.T) {
 		{base: "", want: wsTLSFileNameFallback},
 		{base: ".ca.pem.", want: "ca.pem"},
 		{base: "aux.key", want: "_aux.key"},
+		{base: "aux." + strings.Repeat("a", 56) + ".pem", want: "_aux." + strings.Repeat("a", 55) + ".pem"},
 		{base: "clé.pem", want: "cl_.pem"},
 		{base: strings.Repeat("a", 70) + ".pem", want: strings.Repeat("a", 60) + ".pem"},
 	}
@@ -211,6 +214,8 @@ func TestWSTLSFileReader(t *testing.T) {
 		{name: "absolute path", ref: filepath.Join(dir, "ca.pem"), want: "disk"},
 		{name: "relative to base", baseDir: dir, ref: "ca.pem", want: "disk"},
 		{name: "relative without base", ref: "ca.pem", wantErr: true},
+		{name: "UNC path", ref: `\\203.0.113.9\share\ca.pem`, wantErr: true},
+		{name: "device path", ref: `\\?\C:\ca.pem`, wantErr: true},
 		{name: "missing file", ref: filepath.Join(dir, "missing.pem"), wantErr: true},
 	}
 	for _, tc := range tests {
@@ -253,4 +258,123 @@ func TestPrepareWSTLSFiles_LocalPathsInPlace(t *testing.T) {
 	cleanup()
 	equal(t, `C:\certs\ca.pem`, c.Peers[0].WSTLSCA)
 	equal(t, "D:/k.pem", c.Peers[0].WSTLSKey)
+}
+
+func TestCollectWSTLSFiles_CaseVariantsShareOneFile(t *testing.T) {
+	c := wsTLSTestConfig(t, "WSTLSCA = ca.pem\nWSTLSCert = CA.pem\n")
+	reads := 0
+	_, err := c.CollectWSTLSFiles(func(string) ([]byte, error) {
+		reads++
+		return []byte("ca"), nil
+	})
+	if err != nil {
+		t.Fatalf("CollectWSTLSFiles: %v", err)
+	}
+	equal(t, 1, reads)
+	equal(t, "ca.pem", c.Peers[0].WSTLSCA)
+	equal(t, "ca.pem", c.Peers[0].WSTLSCert)
+	equal(t, map[string][]byte{"ca.pem": []byte("ca")}, c.WSTLSFiles)
+}
+
+func TestValidateWSTLSFiles_CaseOnlyDuplicates(t *testing.T) {
+	c := wsTLSTestConfig(t, "WSTLSCA = ca.pem\nWSTLSCert = CA.pem\n")
+	c.WSTLSFiles = map[string][]byte{"ca.pem": {1}, "CA.pem": {2}}
+	if err := c.ValidateWSTLSFiles(); err == nil {
+		t.Fatal("ValidateWSTLSFiles accepted names that differ only in case")
+	}
+}
+
+// wsTLSTestZip builds an in-memory archive from name/content pairs.
+func wsTLSTestZip(t *testing.T, entries map[string][]byte) map[string]*zip.File {
+	t.Helper()
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	for name, data := range entries {
+		f, err := w.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Write(data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	r, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := make(map[string]*zip.File, len(r.File))
+	for _, f := range r.File {
+		files[f.Name] = f
+	}
+	return files
+}
+
+func TestWSTLSZipFileReader(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "disk.pem"), []byte("disk"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	files := wsTLSTestZip(t, map[string][]byte{
+		"set/tun.conf":         []byte("[Interface]"),
+		"set/tun/ca.pem":       []byte("folder"),
+		"set/ca.pem":           []byte("sibling"),
+		"set/only-sibling.pem": []byte("sibling only"),
+		"set/tun/certs/c.pem":  []byte("nested"),
+		"set/tun/big.pem":      make([]byte, MaxWSTLSFileSize+1),
+	})
+	read := WSTLSZipFileReader(files, "set/tun.conf")
+	tests := []struct {
+		name    string
+		ref     string
+		want    string
+		wantErr bool
+	}{
+		{name: "folder named after the configuration first", ref: "ca.pem", want: "folder"},
+		{name: "next to the configuration", ref: "only-sibling.pem", want: "sibling only"},
+		{name: "nested with backslashes", ref: `certs\c.pem`, want: "nested"},
+		{name: "absolute local path", ref: filepath.Join(dir, "disk.pem"), want: "disk"},
+		{name: "UNC path", ref: `\\203.0.113.9\share\ca.pem`, wantErr: true},
+		{name: "too large", ref: "big.pem", wantErr: true},
+		{name: "missing", ref: "missing.pem", wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := read(tc.ref)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("read(%q) error = %v, wantErr %v", tc.ref, err, tc.wantErr)
+			}
+			equal(t, tc.want, string(got))
+		})
+	}
+}
+
+func TestUniqueWSTLSFileName(t *testing.T) {
+	long := "k." + strings.Repeat("a", 62)
+	tests := []struct {
+		name  string
+		taken []string
+		want  string
+	}{
+		{name: "ca.pem", taken: nil, want: "ca.pem"},
+		{name: "ca.pem", taken: []string{"ca.pem"}, want: "ca-2.pem"},
+		{name: "ca.pem", taken: []string{"CA.PEM", "ca-2.pem"}, want: "ca-3.pem"},
+		{name: strings.Repeat("a", 64), taken: []string{strings.Repeat("a", 64)}, want: strings.Repeat("a", 62) + "-2"},
+		{name: long, taken: []string{long}, want: long[:62] + "-2"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			taken := make(map[string]bool)
+			for _, n := range tc.taken {
+				taken[strings.ToLower(n)] = true
+			}
+			got := uniqueWSTLSFileName(tc.name, taken)
+			equal(t, tc.want, got)
+			if !WSTLSFileNameIsValid(got) {
+				t.Errorf("unique name %q is not valid", got)
+			}
+		})
+	}
 }

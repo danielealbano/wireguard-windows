@@ -81,17 +81,32 @@ func isWSURL(s string) bool {
 // parseWSURL accepts ws(s)://host:port[/path[?query][#fragment]]: the scheme is
 // case-insensitive, the port is mandatory, userinfo is rejected, and a query or
 // fragment requires a path. It returns the URL's host:port as the peer endpoint.
+// redactWSURL hides the host part of a URL, including any userinfo, which may hold a
+// password, from error messages. The host part ends at the first '/' after the last '@',
+// since a password may itself contain '/', '?' or '#'.
+func redactWSURL(s string) string {
+	scheme, rest, ok := strings.Cut(s, "://")
+	if !ok {
+		return "xxxxx"
+	}
+	afterUserinfo := rest[strings.LastIndexByte(rest, '@')+1:]
+	if slash := strings.IndexByte(afterUserinfo, '/'); slash >= 0 {
+		return scheme + "://xxxxx" + afterUserinfo[slash:]
+	}
+	return scheme + "://xxxxx"
+}
+
 func parseWSURL(s string) (*Endpoint, error) {
-	invalid := &ParseError{l18n.Sprintf("Invalid WebSocket endpoint URL"), s}
+	invalid := &ParseError{l18n.Sprintf("Invalid WebSocket endpoint URL"), redactWSURL(s)}
 	u, err := url.Parse(s)
 	if err != nil || (u.Scheme != "ws" && u.Scheme != "wss") || u.Opaque != "" {
 		return nil, invalid
 	}
 	if u.User != nil {
-		return nil, &ParseError{l18n.Sprintf("WebSocket endpoint URL must not contain a user name or password"), s}
+		return nil, &ParseError{l18n.Sprintf("WebSocket endpoint URL must not contain a user name or password"), redactWSURL(s)}
 	}
 	if u.Path == "" && (u.RawQuery != "" || u.ForceQuery || u.Fragment != "") {
-		return nil, &ParseError{l18n.Sprintf("WebSocket endpoint URL query or fragment requires a path"), s}
+		return nil, &ParseError{l18n.Sprintf("WebSocket endpoint URL query or fragment requires a path"), redactWSURL(s)}
 	}
 	host, port := u.Hostname(), u.Port()
 	if host == "" || port == "" {
@@ -139,7 +154,7 @@ func validateWebSocketPeer(p *Peer, wsKeys []string) error {
 	isWSTunnel := p.WSMode == WSModeWSTunnel
 	switch {
 	case p.WSURL != "" && p.WSMode == WSModeNone:
-		return &ParseError{l18n.Sprintf("A WebSocket endpoint requires WSMode"), p.WSURL}
+		return &ParseError{l18n.Sprintf("A WebSocket endpoint requires WSMode"), redactWSURL(p.WSURL)}
 	case p.WSURL == "" && p.WSMode != WSModeNone && !p.Endpoint.IsEmpty():
 		return &ParseError{l18n.Sprintf("WSMode requires a ws:// or wss:// endpoint"), p.Endpoint.String()}
 	case isWSTunnel && p.WSURL == "":

@@ -6,6 +6,7 @@
 package conf
 
 import (
+	"encoding/hex"
 	"strings"
 	"testing"
 )
@@ -62,6 +63,14 @@ func TestFromWgQuick_WebSocketPeer_Valid(t *testing.T) {
 			peer: "Endpoint = ws://[2001:db8::1]:443/x?y=1\nWSMode = websocket\n",
 			check: func(t *testing.T, p *Peer) {
 				equal(t, Endpoint{Host: "2001:db8::1", Port: 443}, p.Endpoint)
+			},
+		},
+		{
+			name: "an @ after the host part belongs to the path",
+			peer: "Endpoint = wss://vpn.example.com:443/p@th\nWSMode = websocket\n",
+			check: func(t *testing.T, p *Peer) {
+				equal(t, "wss://vpn.example.com:443/p@th", p.WSURL)
+				equal(t, Endpoint{Host: "vpn.example.com", Port: 443}, p.Endpoint)
 			},
 		},
 		{
@@ -294,4 +303,79 @@ func TestHasWebSocketPeers(t *testing.T) {
 			equal(t, tc.want, c.HasWebSocketPeers())
 		})
 	}
+}
+
+func TestFromWgQuick_WebSocketURLPassword_NotInErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		extra    string
+	}{
+		{name: "userinfo", endpoint: "wss://user:S3cretPw@vpn.example.com:443/ws", extra: "WSMode = websocket\n"},
+		{name: "userinfo and query without path", endpoint: "wss://user:S3cretPw@vpn.example.com:443?x=1", extra: "WSMode = websocket\n"},
+		{name: "userinfo and missing port", endpoint: "wss://user:S3cretPw@vpn.example.com/ws", extra: "WSMode = websocket\n"},
+		{name: "userinfo and unparsable URL", endpoint: "wss://user:S3cretPw@vpn example.com:443/%zz", extra: "WSMode = websocket\n"},
+		{name: "slash in the password", endpoint: "wss://user:S3cret/Pw@vpn.example.com:443/ws", extra: "WSMode = websocket\n"},
+		{name: "question mark in the password", endpoint: "wss://user:S3cret?Pw@vpn.example.com:443/ws", extra: "WSMode = websocket\n"},
+		{name: "hash in the password cuts the line", endpoint: "wss://user:S3cret#Pw@vpn.example.com:443/ws", extra: "WSMode = websocket\n"},
+		{name: "digits then question mark in the password", endpoint: "wss://user:2024?S3cret@vpn.example.com:443/ws", extra: "WSMode = websocket\n"},
+		{name: "URL without WSMode", endpoint: "wss://user:2024/S3cret@vpn.example.com:443/ws"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := FromWgQuick(wsTestConfig("Endpoint = "+tc.endpoint+"\n"+tc.extra), "ws")
+			if err == nil {
+				t.Fatal("FromWgQuick accepted the URL")
+			}
+			if strings.Contains(err.Error(), "S3cret") {
+				t.Fatalf("error leaks the URL password: %v", err)
+			}
+		})
+	}
+}
+
+func TestRedactWSURL(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{in: "wss://user:pw@host:443/p?q#f", want: "wss://xxxxx/p?q#f"},
+		{in: "wss://alice:pa/ss@vpn.example.com:443/ws", want: "wss://xxxxx/ws"},
+		{in: "wss://alice:pa?ss@vpn.example.com:443", want: "wss://xxxxx"},
+		{in: "wss://alice:pa", want: "wss://xxxxx"},
+		{in: "ws://host:bad/x", want: "ws://xxxxx/x"},
+		{in: "not a url", want: "xxxxx"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			equal(t, tc.want, redactWSURL(tc.in))
+		})
+	}
+}
+
+func TestFromUAPI_KeepsTheStoredPeerOrder(t *testing.T) {
+	stored, err := FromWgQuick(wsTestInterface+`
+[Peer]
+PublicKey = `+wsTestPeerKey+`
+AllowedIPs = 10.0.0.1/32
+
+[Peer]
+PublicKey = TrMvSoP4jYQlY6RIzBgbssQqY3vxI2Pi+y71lOWWXX0=
+AllowedIPs = 10.0.0.2/32
+`, "ws")
+	if err != nil {
+		t.Fatalf("FromWgQuick: %v", err)
+	}
+	peerLines := func(p *Peer) string {
+		return "public_key=" + hex.EncodeToString(p.PublicKey[:]) + "\nprotocol_version=1\ntransport=udp\nallowed_ip=" + p.AllowedIPs[0].String() + "\n"
+	}
+	response := "private_key=" + strings.Repeat("11", 32) + "\n" + peerLines(&stored.Peers[1]) + peerLines(&stored.Peers[0]) + "errno=0\n\n"
+	c, err := FromUAPI(strings.NewReader(response), stored)
+	if err != nil {
+		t.Fatalf("FromUAPI: %v", err)
+	}
+	if len(c.Peers) != 2 {
+		t.Fatalf("got %d peers, want 2", len(c.Peers))
+	}
+	equal(t, stored.Peers[0].PublicKey, c.Peers[0].PublicKey)
+	equal(t, stored.Peers[1].PublicKey, c.Peers[1].PublicKey)
 }

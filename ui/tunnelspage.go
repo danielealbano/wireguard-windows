@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -341,7 +340,7 @@ func (tp *TunnelsPage) importFiles(paths []string) {
 						lastErr = err
 						continue
 					}
-					unparsedConfigs = append(unparsedConfigs, unparsedConfig{Name: strings.TrimSuffix(filepath.Base(f.Name), filepath.Ext(f.Name)), Config: string(textConfig), ReadWSTLSFile: zipWSTLSFileReader(zipFiles, f.Name)})
+					unparsedConfigs = append(unparsedConfigs, unparsedConfig{Name: strings.TrimSuffix(filepath.Base(f.Name), filepath.Ext(f.Name)), Config: string(textConfig), ReadWSTLSFile: conf.WSTLSZipFileReader(zipFiles, f.Name)})
 				}
 			}
 		}
@@ -416,44 +415,6 @@ func (tp *TunnelsPage) importFiles(paths []string) {
 			syncedMsgBox(l18n.Sprintf("TLS files copied"), l18n.Sprintf("These TLS files are stored, encrypted, with the tunnel, and the configuration now refers to them by name:\n\n%s", strings.Join(copiedWSTLSFiles, "\n")), walk.MsgBoxIconInformation)
 		}
 	}()
-}
-
-// zipWSTLSFileReader resolves the TLS file references of the configuration at confPath
-// in an archive: a relative reference is looked up in the folder named after the
-// configuration, as written by exportTunnels, then next to the configuration.
-func zipWSTLSFileReader(files map[string]*zip.File, confPath string) func(ref string) ([]byte, error) {
-	dir := path.Dir(confPath)
-	name := strings.TrimSuffix(path.Base(confPath), path.Ext(confPath))
-	readFromDisk := conf.WSTLSFileReader(nil, "")
-	return func(ref string) ([]byte, error) {
-		if filepath.IsAbs(ref) {
-			return readFromDisk(ref)
-		}
-		rel := filepath.ToSlash(ref)
-		for _, candidate := range []string{path.Join(dir, name, rel), path.Join(dir, rel)} {
-			f, ok := files[candidate]
-			if !ok {
-				continue
-			}
-			if f.UncompressedSize64 > conf.MaxWSTLSFileSize {
-				return nil, errors.New(l18n.Sprintf("the file is too large"))
-			}
-			rc, err := f.Open()
-			if err != nil {
-				return nil, err
-			}
-			defer rc.Close()
-			data, err := io.ReadAll(io.LimitReader(rc, conf.MaxWSTLSFileSize+1))
-			if err != nil {
-				return nil, err
-			}
-			if len(data) > conf.MaxWSTLSFileSize {
-				return nil, errors.New(l18n.Sprintf("the file is too large"))
-			}
-			return data, nil
-		}
-		return nil, errors.New(l18n.Sprintf("the file is not in the archive"))
-	}
 }
 
 func (tp *TunnelsPage) exportTunnels(filePath string) {

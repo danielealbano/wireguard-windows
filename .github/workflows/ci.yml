@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: go mod tidy && git diff --exit-code go.mod go.sum
 
-      # Upstream's existing findings are not gates (see .claude/rules/project.md), so only
+      # Upstream's existing findings are not gates (see docs/PROJECT.md, "Scope of the gates"), so only
       # findings on lines the fork added or changed since upstream 1.1.1 fail the build.
       # wintun/ is a copy of the upstream wintun-go bindings.
       - name: go vet (lines changed by the fork)
@@ -50,10 +50,12 @@ jobs:
             /^\+\+\+ b\// { file = substr($0, 7); next }
             /^@@/ { split($3, a, ","); start = substr(a[1], 2); count = (a[2] == "" ? 1 : a[2]);
                     for (i = 0; i < count; i++) print file ":" start + i }' > "$RUNNER_TEMP/changed-lines.txt"
-          pkgs=$(git diff --name-only "$base" HEAD -- '*.go' ':!wintun' | xargs -n1 dirname | sort -u | sed 's#^#./#')
+          pkgs=$(git diff --name-only --diff-filter=d "$base" HEAD -- '*.go' ':!wintun' | xargs -n1 dirname | sort -u | sed 's#^#./#')
+          # go vet's errors go to the filtered file below, so fail here if a package cannot be loaded.
+          go list -tags integration $pkgs > /dev/null
           status=0
           for arch in amd64 arm64; do
-            GOARCH=$arch go vet $pkgs 2> "$RUNNER_TEMP/vet-$arch.txt" || true
+            GOARCH=$arch go vet -tags integration $pkgs 2> "$RUNNER_TEMP/vet-$arch.txt" || true
             tr '\\' '/' < "$RUNNER_TEMP/vet-$arch.txt" | awk -F: -v arch=$arch '
               NR == FNR { changed[$0]; next }
               /\.go:[0-9]+:/ && (($1 ":" $2) in changed) { print "new go vet finding (" arch "): " $0; bad = 1 }
@@ -70,7 +72,7 @@ jobs:
 
       - name: govulncheck
         shell: bash
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
       - name: Build the MSIs (installer\build.bat)
         shell: cmd

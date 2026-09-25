@@ -53,6 +53,33 @@ type mtuClamper interface {
 	ForceMTU(mtu int)
 }
 
+// sharedMTUClamper gives the userspace device the smaller of the MTUs computed by the
+// IPv4 and IPv6 monitors, which run on separate callback goroutines.
+type sharedMTUClamper struct {
+	mu   sync.Mutex
+	tun  mtuClamper
+	mtus [2]int
+}
+
+// familyMTUClamper is the mtuClamper of one address family's monitor.
+type familyMTUClamper struct {
+	shared *sharedMTUClamper
+	index  int
+}
+
+func (c familyMTUClamper) ForceMTU(mtu int) {
+	s := c.shared
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mtus[c.index] = mtu
+	for _, m := range s.mtus {
+		if m > 0 && m < mtu {
+			mtu = m
+		}
+	}
+	s.tun.ForceMTU(mtu)
+}
+
 func monitorMTU(family winipcfg.AddressFamily, ourLUID winipcfg.LUID, clamper mtuClamper) ([]winipcfg.ChangeCallback, error) {
 	var minMTU int
 	if family == windows.AF_INET {

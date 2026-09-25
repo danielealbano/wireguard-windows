@@ -742,9 +742,23 @@
             "fuzzy": true
         },
         {
+            "id": "Stored TLS file names must differ in more than letter case",
+            "message": "Stored TLS file names must differ in more than letter case",
+            "translation": "Stored TLS file names must differ in more than letter case",
+            "translatorComment": "Copied from source.",
+            "fuzzy": true
+        },
+        {
             "id": "Unexpected stored TLS file",
             "message": "Unexpected stored TLS file",
             "translation": "Unexpected stored TLS file",
+            "translatorComment": "Copied from source.",
+            "fuzzy": true
+        },
+        {
+            "id": "the path must be on a local drive",
+            "message": "the path must be on a local drive",
+            "translation": "the path must be on a local drive",
             "translatorComment": "Copied from source.",
             "fuzzy": true
         },
@@ -759,6 +773,13 @@
             "id": "the file is too large",
             "message": "the file is too large",
             "translation": "the file is too large",
+            "translatorComment": "Copied from source.",
+            "fuzzy": true
+        },
+        {
+            "id": "the file is not in the archive",
+            "message": "the file is not in the archive",
+            "translation": "the file is not in the archive",
             "translatorComment": "Copied from source.",
             "fuzzy": true
         },
@@ -2014,13 +2035,6 @@
                     "expr": "n"
                 }
             ]
-        },
-        {
-            "id": "the file is not in the archive",
-            "message": "the file is not in the archive",
-            "translation": "the file is not in the archive",
-            "translatorComment": "Copied from source.",
-            "fuzzy": true
         },
         {
             "id": "Unable to create tunnel",

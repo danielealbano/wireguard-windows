@@ -36,7 +36,7 @@ type interfaceWatcher struct {
 
 	conf    *conf.Config
 	adapter *driver.Adapter
-	clamper mtuClamper
+	clamper *sharedMTUClamper
 	luid    winipcfg.LUID
 
 	setupMutex              sync.Mutex
@@ -70,7 +70,15 @@ func (iw *interfaceWatcher) setup(family winipcfg.AddressFamily) {
 
 	if iw.conf.Interface.MTU == 0 {
 		log.Printf("Monitoring MTU of default %s routes", ipversion)
-		*changeCallbacks, err = monitorMTU(family, iw.luid, iw.clamper)
+		var clamper mtuClamper
+		if iw.clamper != nil {
+			index := 0
+			if family == windows.AF_INET6 {
+				index = 1
+			}
+			clamper = familyMTUClamper{iw.clamper, index}
+		}
+		*changeCallbacks, err = monitorMTU(family, iw.luid, clamper)
 		if err != nil {
 			iw.errors <- interfaceWatcherError{services.ErrorMonitorMTUChanges, err}
 			return
@@ -140,7 +148,10 @@ func (iw *interfaceWatcher) Configure(adapter *driver.Adapter, clamper mtuClampe
 	defer iw.setupMutex.Unlock()
 	iw.watchdog.Reset(time.Minute)
 
-	iw.adapter, iw.clamper, iw.conf, iw.luid = adapter, clamper, conf, luid
+	iw.adapter, iw.conf, iw.luid = adapter, conf, luid
+	if clamper != nil {
+		iw.clamper = &sharedMTUClamper{tun: clamper}
+	}
 	for _, event := range iw.storedEvents {
 		if event.luid == luid {
 			iw.setup(event.family)

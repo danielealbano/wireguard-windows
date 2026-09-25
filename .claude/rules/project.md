@@ -15,8 +15,8 @@ with WiX.
 > **"WireGuard WS"** — per-peer **WebSocket/wstunnel transport** with parity with the user's
 > `wireguard-android` / `wireguard-apple` forks — is implemented: WebSocket configs run on the sibling
 > **`danielealbano/wireguard-go` fork v1.3.1** in userspace over **Wintun**, pure-UDP configs stay on
-> WireGuardNT. Decisions, status and what remains (the MSI identity) are in `docs/PROJECT.md` →
-> WireGuard WS (code signing is the remaining item). The canonical docs MUST be kept current as decisions land.
+> WireGuardNT. Decisions, status and what remains (code signing) are in `docs/PROJECT.md` →
+> WireGuard WS. The canonical docs MUST be kept current as decisions land.
 
 ## MANDATORY: Read These First
 
@@ -177,10 +177,10 @@ with Ubuntu's GNU `windres` (it rejects `LANG_PERSIAN` in `resources.rc`, upstre
 | Build (Linux dev, amd64) | `make amd64/wireguard.exe` (also `x86/wireguard.exe`; needs `mingw-w64`, `libarchive-tools`, ImageMagick) |
 | Deploy to the test VM | `make deploy DEPLOYMENT_HOST=wgws-win11` (copies `amd64/wireguard.exe` to the VM Desktop) |
 | Format | `make fmt` (Linux) / `gofmt -l .` must print nothing |
-| Vet | `GOOS=windows GOARCH=<amd64\|arm64> go vet <changed packages>` — no findings on lines changed since `6ece77bc` (CI's `go vet` step checks exactly that) |
+| Vet | `GOOS=windows GOARCH=<amd64\|arm64> go vet -tags integration <changed packages>` — no findings on lines changed since `6ece77bc` (CI's `go vet` step checks exactly that) |
 | Regenerate catalogs/bindings | `make generate` (Linux) / `set GoGenerate=yes` + `build.bat` (Windows) |
 | Tidy | `go mod tidy` (MUST produce NO `go.mod`/`go.sum` diff) |
-| Vulncheck | `govulncheck ./...` (with `GOOS=windows`) |
+| Vulncheck | `go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...` (with `GOOS=windows`; the version CI pins) |
 | Tests | on Windows, elevated, with `.deps\go\bin` and `.deps\bin` on `PATH`: `set CGO_ENABLED=1` + `set CC=x86_64-w64-mingw32-gcc` + `go test -race -count=1 -tags integration ./conf ./ui/syntax ./tunnel` (add any other changed package) |
 | Installer (Windows only) | `installer\build.bat` |
 | Release | bump `Number` in `version/version.go` (follows the embedded wireguard-go fork), merge, push tag `v<Number>` → `release.yml` drafts the GitHub release |
@@ -197,9 +197,9 @@ the tunnel, manager or UI flows are also validated end to end on the Windows VM 
 ## Testing — ABSOLUTE (project-specific)
 
 - Go tests (Windows-only): `conf/parser_test.go`, `conf/websocket_test.go`, `conf/wstls_test.go`,
-  `conf/store_test.go` and `conf/wstls_store_test.go` (`integration` tag; both write to the real Program
+  `conf/store_test.go` (upstream, untagged) and `conf/wstls_store_test.go` (`integration` tag), which write to the real Program
   Files store), `conf/dpapi/dpapi_windows_test.go`, `ringlogger/cli_test.go`,
-  `tunnel/defaultroutemonitor_test.go`, `tunnel/firewall/types_windows_test.go`,
+  `tunnel/defaultroutemonitor_test.go`, `tunnel/mtumonitor_test.go`, `tunnel/firewall/types_windows_test.go`,
   `tunnel/winipcfg/{types_test,winipcfg_test}.go` (`winipcfg_test` needs elevation and a specially named
   adapter), `ui/syntax/highlighter_test.go`, `updater/{updater_test, winhttp/winhttp_test}.go` (need
   the official signature/network), `version/certificate_test.go`. There are NO tests for `manager/`,
