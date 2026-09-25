@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: go mod tidy && git diff --exit-code go.mod go.sum
 
-      # Upstream's existing findings are not gates (see .claude/rules/project.md), so only
+      # Upstream's existing findings are not gates (see docs/PROJECT.md, "Scope of the gates"), so only
       # findings on lines the fork added or changed since upstream 1.1.1 fail the build.
       # wintun/ is a copy of the upstream wintun-go bindings.
       - name: go vet (lines changed by the fork)

@@ -177,7 +177,7 @@ with Ubuntu's GNU `windres` (it rejects `LANG_PERSIAN` in `resources.rc`, upstre
 | Build (Linux dev, amd64) | `make amd64/wireguard.exe` (also `x86/wireguard.exe`; needs `mingw-w64`, `libarchive-tools`, ImageMagick) |
 | Deploy to the test VM | `make deploy DEPLOYMENT_HOST=wgws-win11` (copies `amd64/wireguard.exe` to the VM Desktop) |
 | Format | `make fmt` (Linux) / `gofmt -l .` must print nothing |
-| Vet | `GOOS=windows GOARCH=<amd64\|arm64> go vet <changed packages>` — no findings on lines changed since `6ece77bc` (CI's `go vet` step checks exactly that) |
+| Vet | `GOOS=windows GOARCH=<amd64\|arm64> go vet -tags integration <changed packages>` — no findings on lines changed since `6ece77bc` (CI's `go vet` step checks exactly that) |
 | Regenerate catalogs/bindings | `make generate` (Linux) / `set GoGenerate=yes` + `build.bat` (Windows) |
 | Tidy | `go mod tidy` (MUST produce NO `go.mod`/`go.sum` diff) |
 | Vulncheck | `go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...` (with `GOOS=windows`; the version CI pins) |
