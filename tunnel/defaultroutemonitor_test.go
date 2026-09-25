@@ -53,13 +53,18 @@ Endpoint = 198.51.100.1:51820
 [Peer]
 PublicKey = HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=
 WSMode = websocket
+
+[Peer]
+PublicKey = UQuEZs0reI5GWgg2fKLhpvsGVErYChJc8RAL6PQUk/k=
+Endpoint = wss://[::ffff:198.51.100.9]:443/ws
+WSMode = websocket
 `)
 	tests := []struct {
 		name   string
 		family winipcfg.AddressFamily
 		want   []netip.Prefix
 	}{
-		{name: "IPv4 servers deduplicated, UDP and inbound peers ignored", family: windows.AF_INET, want: []netip.Prefix{netip.MustParsePrefix("203.0.113.7/32")}},
+		{name: "IPv4 servers deduplicated and unmapped, UDP and inbound peers ignored", family: windows.AF_INET, want: []netip.Prefix{netip.MustParsePrefix("203.0.113.7/32"), netip.MustParsePrefix("198.51.100.9/32")}},
 		{name: "IPv6 server", family: windows.AF_INET6, want: []netip.Prefix{netip.MustParsePrefix("2001:db8::7/128")}},
 	}
 	for _, tc := range tests {
@@ -81,6 +86,42 @@ WSMode = websocket
 `)
 	if got := webSocketServerHosts(c, windows.AF_INET); len(got) != 0 {
 		t.Errorf("webSocketServerHosts() = %v, want none", got)
+	}
+}
+
+func TestDefaultRouteMonitor_HostRouteDeleted(t *testing.T) {
+	tests := []struct {
+		name           string
+		deleted        string
+		want           bool
+		wantIncomplete [2]bool
+	}{
+		{name: "IPv4 host route", deleted: "203.0.113.7/32", want: true, wantIncomplete: [2]bool{true, false}},
+		{name: "IPv6 host route", deleted: "2001:db8::7/128", want: true, wantIncomplete: [2]bool{false, true}},
+		{name: "other route", deleted: "203.0.113.0/24", want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &defaultRouteMonitor{families: [2]defaultRouteFamily{
+				{family: windows.AF_INET, hosts: []netip.Prefix{netip.MustParsePrefix("203.0.113.7/32")}},
+				{family: windows.AF_INET6, hosts: []netip.Prefix{netip.MustParsePrefix("2001:db8::7/128")}},
+			}}
+			var route winipcfg.MibIPforwardRow2
+			if err := route.DestinationPrefix.SetPrefix(netip.MustParsePrefix(tc.deleted)); err != nil {
+				t.Fatalf("SetPrefix: %v", err)
+			}
+
+			got := m.hostRouteDeleted(&route)
+
+			if got != tc.want {
+				t.Errorf("hostRouteDeleted(%s) = %v, want %v", tc.deleted, got, tc.want)
+			}
+			for i, want := range tc.wantIncomplete {
+				if m.families[i].incomplete != want {
+					t.Errorf("families[%d].incomplete = %v, want %v", i, m.families[i].incomplete, want)
+				}
+			}
+		})
 	}
 }
 

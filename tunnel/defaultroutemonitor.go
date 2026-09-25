@@ -93,10 +93,14 @@ func webSocketServerHosts(config *conf.Config, family winipcfg.AddressFamily) []
 			continue
 		}
 		addr, err := netip.ParseAddr(peer.Endpoint.Host)
-		if err != nil || addr.Is4() != (family == windows.AF_INET) {
+		if err != nil {
 			continue
 		}
-		prefix := netip.PrefixFrom(addr.Unmap(), addr.Unmap().BitLen())
+		addr = addr.Unmap()
+		if addr.Is4() != (family == windows.AF_INET) {
+			continue
+		}
+		prefix := netip.PrefixFrom(addr, addr.BitLen())
 		duplicate := false
 		for _, host := range hosts {
 			duplicate = duplicate || host == prefix
